@@ -10,6 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
+
 st.title("StreamForge Telemetry Dashboard")
 st.write("Live telemetry from Kafka")
 
@@ -20,7 +21,32 @@ def live_dashboard():
     events = get_recent_events(30)
 
     if events:
+
         df = pd.DataFrame(events)
+
+        # -----------------------------
+        # Device Filter
+        # -----------------------------
+
+        st.subheader("Device Filter")
+
+        devices = sorted(df["device_id"].dropna().unique().tolist())
+
+        selected_device = st.selectbox(
+            "Select Device",
+            ["All Devices"] + devices
+        )
+
+        if selected_device != "All Devices":
+            df = df[df["device_id"] == selected_device].copy()
+
+        if df.empty:
+            st.warning("No telemetry available for the selected device.")
+            return
+
+        # -----------------------------
+        # Telemetry Overview
+        # -----------------------------
 
         st.subheader("Telemetry Overview")
 
@@ -55,7 +81,11 @@ def live_dashboard():
                 event_count
             )
 
-            st.subheader("Telemetry Charts")
+        # -----------------------------
+        # Telemetry Charts
+        # -----------------------------
+
+        st.subheader("Telemetry Charts")
 
         chart_data = df[["temperature", "humidity"]].copy()
 
@@ -68,6 +98,10 @@ def live_dashboard():
         with col2:
             st.write("Humidity")
             st.line_chart(chart_data["humidity"])
+
+        # -----------------------------
+        # Device-wise Analysis
+        # -----------------------------
 
         st.subheader("Device-wise Analysis")
 
@@ -94,9 +128,15 @@ def live_dashboard():
             use_container_width=True
         )
 
+        # -----------------------------
+        # Recent Telemetry
+        # -----------------------------
+
         st.subheader("Recent Telemetry")
 
-        for event in events:
+        filtered_events = df.to_dict("records")
+
+        for event in filtered_events:
             st.write(
                 f"**{event.get('device_id', 'N/A')}** | "
                 f"Temperature: {event.get('temperature', 'N/A')} °C | "
@@ -106,5 +146,6 @@ def live_dashboard():
 
     else:
         st.warning("No telemetry events available.")
+
 
 live_dashboard()
