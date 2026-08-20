@@ -30,3 +30,17 @@ stream processing, state management, FastAPI, React, and Prometheus.
 
 \- docker
 
+
+
+\## Testing
+
+
+
+Run all tests:
+
+
+
+```powershell
+
+python -m pytest -v
+
