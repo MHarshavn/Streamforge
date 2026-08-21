@@ -82,6 +82,47 @@ def live_dashboard():
             )
 
         # -----------------------------
+        # Telemetry Alerts
+        # -----------------------------
+
+        st.subheader("Telemetry Alerts")
+
+        alerts = []
+
+        for _, event in df.iterrows():
+
+            if event["temperature"] > 35:
+                alerts.append({
+                    "device_id": event["device_id"],
+                    "type": "High Temperature",
+                    "value": f"{event['temperature']:.2f} °C",
+                    "timestamp": event.get("timestamp", "N/A")
+                })
+
+            if event["humidity"] > 80:
+                alerts.append({
+                    "device_id": event["device_id"],
+                    "type": "High Humidity",
+                    "value": f"{event['humidity']:.2f} %",
+                    "timestamp": event.get("timestamp", "N/A")
+                })
+
+        if alerts:
+
+            st.warning(f"⚠️ {len(alerts)} alert(s) detected")
+
+            alert_df = pd.DataFrame(alerts)
+
+            st.dataframe(
+                alert_df,
+                use_container_width=True
+            )
+
+        else:
+
+            st.success("✅ No telemetry alerts detected.")
+
+        # -----------------------------
         # Telemetry Charts
         # -----------------------------
 
