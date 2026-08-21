@@ -146,3 +146,39 @@ When invalid telemetry is received, the processor prints an appropriate validati
 ## Summary
 
 The StreamForge stream processor provides a reliable Kafka consumer for telemetry data. It deserializes JSON events, validates telemetry values, processes valid events, logs processing results, and safely rejects malformed data without crashing the consumer.
+
+## Testing
+
+The StreamForge stream processor was tested with Apache Kafka running locally through Docker.
+
+The consumer successfully connected to the Kafka broker at `localhost:9092` and consumed telemetry events from the `telemetry-events` topic.
+
+### Valid Telemetry
+
+Valid telemetry events were successfully processed and displayed with device ID, temperature, humidity, and timestamp.
+
+Example:
+
+```text
+Processed | device_004 | Temp: 27.73°C | Humidity: 44.03%
+```
+
+### Invalid Telemetry
+
+Invalid telemetry events are handled safely without crashing the consumer.
+
+The consumer validates:
+
+- Missing `device_id`
+- Missing `temperature`
+- Missing `humidity`
+- Missing `timestamp`
+- Non-numeric temperature or humidity
+- Temperature outside the valid range
+- Humidity outside the valid range
+
+### Test Result
+
+The producer successfully sent telemetry events to Kafka, and the stream processor successfully consumed and processed the events.
+
+The consumer remained stable while handling telemetry validation and processing.
