@@ -182,3 +182,7 @@ The consumer validates:
 The producer successfully sent telemetry events to Kafka, and the stream processor successfully consumed and processed the events.
 
 The consumer remained stable while handling telemetry validation and processing.
+
+Unit tests were executed using pytest, with all 16 tests passing successfully.
+
+Test Result: 16 passed in 0.52 seconds.
