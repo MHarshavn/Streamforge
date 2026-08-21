@@ -223,4 +223,36 @@ def test_invalid_event_logs_error(caplog):
     with caplog.at_level("ERROR"):
         process_event(event)
 
-    assert "temperature out of range" in caplog.text
+        assert "temperature out of range" in caplog.text
+
+
+def test_temperature_boundary_values(capsys):
+    event = {
+        "device_id": "TRUCK-001",
+        "temperature": -50,
+        "humidity": 0,
+        "timestamp": "2026-08-17T12:00:00"
+    }
+
+    process_event(event)
+
+    captured = capsys.readouterr()
+
+    assert "Processed" in captured.out
+    assert "TRUCK-001" in captured.out
+
+
+def test_temperature_and_humidity_upper_boundary(capsys):
+    event = {
+        "device_id": "TRUCK-001",
+        "temperature": 100,
+        "humidity": 100,
+        "timestamp": "2026-08-17T12:00:00"
+    }
+
+    process_event(event)
+
+    captured = capsys.readouterr()
+
+    assert "Processed" in captured.out
+    assert "TRUCK-001" in captured.out
