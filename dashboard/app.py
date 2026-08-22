@@ -123,6 +123,51 @@ def live_dashboard():
             st.success("✅ No telemetry alerts detected.")
 
         # -----------------------------
+        # System Health Status
+        # -----------------------------
+
+        st.subheader("System Health")
+
+        active_alerts = len(alerts)
+
+        affected_devices = len(
+            set(alert["device_id"] for alert in alerts)
+        )
+
+        critical_condition = (
+            (df["temperature"] > 38).any()
+            or
+            (df["humidity"] > 85).any()
+        )
+
+        if critical_condition:
+            system_status = "🔴 Critical"
+        elif active_alerts > 0:
+            system_status = "🟡 Warning"
+        else:
+            system_status = "🟢 Healthy"
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "System Status",
+                system_status
+            )
+
+        with col2:
+            st.metric(
+                "Active Alerts",
+                active_alerts
+            )
+
+        with col3:
+            st.metric(
+                "Affected Devices",
+                affected_devices
+            )
+
+        # -----------------------------
         # Telemetry Charts
         # -----------------------------
 
