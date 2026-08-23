@@ -1,4 +1,6 @@
-from stream_processor.consumer import process_event
+from unittest.mock import patch
+
+from stream_processor.consumer import create_consumer, process_event
 
 
 def test_valid_event(capsys):
@@ -256,3 +258,17 @@ def test_temperature_and_humidity_upper_boundary(capsys):
 
     assert "Processed" in captured.out
     assert "TRUCK-001" in captured.out
+    
+def test_create_consumer_configuration():
+    with patch("stream_processor.consumer.KafkaConsumer") as mock_consumer:
+        create_consumer()
+
+        mock_consumer.assert_called_once()
+
+        args, kwargs = mock_consumer.call_args
+
+        assert args[0] == "telemetry-events"
+        assert kwargs["bootstrap_servers"] == "localhost:9092"
+        assert kwargs["group_id"] == "streamforge-consumer"
+        assert kwargs["auto_offset_reset"] == "latest"
+        assert kwargs["enable_auto_commit"] is True
