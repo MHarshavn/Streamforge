@@ -5,15 +5,16 @@ KAFKA_BROKER = "localhost:9092"
 
 
 def check_kafka_health():
+    client = None
+
     try:
         client = KafkaAdminClient(
-    bootstrap_servers=KAFKA_BROKER,
-    request_timeout_ms=3000,
-    bootstrap_timeout_ms=3000,
+            bootstrap_servers=KAFKA_BROKER,
+            request_timeout_ms=3000,
+            bootstrap_timeout_ms=3000,
         )
 
         client.list_topics()
-        client.close()
 
         return {
             "status": "healthy",
@@ -28,3 +29,7 @@ def check_kafka_health():
             "broker": KAFKA_BROKER,
             "error": str(error),
         }
+
+    finally:
+        if client is not None:
+            client.close()
