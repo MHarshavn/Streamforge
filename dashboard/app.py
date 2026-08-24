@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 
 from kafka_client import get_recent_events
+from monitoring.kafka_health import check_kafka_health
 
 
 st.set_page_config(
@@ -15,14 +16,52 @@ st.title("StreamForge Telemetry Dashboard")
 st.write("Live telemetry from Kafka")
 
 
+# Keep telemetry data between dashboard refreshes
+if "telemetry_buffer" not in st.session_state:
+    st.session_state.telemetry_buffer = []
+
+
 @st.fragment(run_every="5s")
 def live_dashboard():
 
-    events = get_recent_events(30)
+
+    # Kafka Health Status
+    kafka_health = check_kafka_health()
+
+    if kafka_health["status"] == "healthy":
+        st.success("🟢 Kafka Status: Healthy")
+    else:
+        st.error("🔴 Kafka Status: Unhealthy")
+
+    # Read newly available events from Kafka
+    new_events = get_recent_events(30)
+
+    # Add new events to the existing dashboard buffer
+    if new_events:
+        st.session_state.telemetry_buffer.extend(new_events)
+
+    # Keep only the latest 100 events
+    st.session_state.telemetry_buffer = (
+        st.session_state.telemetry_buffer[-100:]
+    )
+
+    events = st.session_state.telemetry_buffer
+
+    # Keep telemetry history across dashboard refreshes
+    if "telemetry_history" not in st.session_state:
+        st.session_state.telemetry_history = []
 
     if events:
+        st.session_state.telemetry_history.extend(events)
 
-        df = pd.DataFrame(events)
+        # Keep only the latest 100 events
+        st.session_state.telemetry_history = (
+            st.session_state.telemetry_history[-100:]
+        )
+
+    df = pd.DataFrame(st.session_state.telemetry_history)
+
+    if not df.empty:
 
         # -----------------------------
         # Device Filter
@@ -30,11 +69,24 @@ def live_dashboard():
 
         st.subheader("Device Filter")
 
-        devices = sorted(df["device_id"].dropna().unique().tolist())
+        devices = sorted(
+            df["device_id"].dropna().unique().tolist()
+        )
+        device_options = ["All Devices"] + devices
+
+        if "selected_device" not in st.session_state:
+            st.session_state.selected_device = "All Devices"
+
+        if (
+            st.session_state.selected_device != "All Devices"
+            and st.session_state.selected_device not in device_options
+        ):
+            device_options.append(st.session_state.selected_device)
 
         selected_device = st.selectbox(
             "Select Device",
-            ["All Devices"] + devices
+            device_options,
+            key="selected_device"
         )
 
         if selected_device != "All Devices":
@@ -89,9 +141,13 @@ def live_dashboard():
 
         alerts = []
 
+
         for _, event in df.iterrows():
 
-            if event["temperature"] > 35:
+            if (
+                (selected_device == "All Devices" or event["device_id"] == selected_device)
+                and event["temperature"] > 35
+            ):
                 alerts.append({
                     "device_id": event["device_id"],
                     "type": "High Temperature",
@@ -99,7 +155,10 @@ def live_dashboard():
                     "timestamp": event.get("timestamp", "N/A")
                 })
 
-            if event["humidity"] > 80:
+            if (
+                (selected_device == "All Devices" or event["device_id"] == selected_device)
+                and event["humidity"] > 80
+            ):
                 alerts.append({
                     "device_id": event["device_id"],
                     "type": "High Humidity",

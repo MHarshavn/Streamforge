@@ -21,18 +21,27 @@ def create_dashboard_consumer():
     )
 
 
-def get_recent_events(max_events=30):
-    consumer = create_dashboard_consumer()
+consumer = create_dashboard_consumer()
 
+
+def get_recent_events(max_events=30):
+    """
+    Read newly available telemetry events from Kafka.
+    Does not block waiting for a fixed number of messages.
+    """
     events = []
 
-    records = consumer.poll(
-        timeout_ms=1000,
-        max_records=max_events
-    )
+    try:
+        records = consumer.poll(
+            timeout_ms=1000,
+            max_records=max_events
+        )
 
-    for messages in records.values():
-        for message in messages:
-            events.append(message.value)
+        for messages in records.values():
+            for message in messages:
+                events.append(message.value)
+
+    except Exception as e:
+        print(f"Kafka error: {e}")
 
     return events
