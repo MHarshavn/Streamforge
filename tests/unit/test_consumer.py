@@ -1,6 +1,9 @@
 from unittest.mock import patch
-
-from stream_processor.consumer import create_consumer, process_event
+from stream_processor.consumer import (
+    create_consumer,
+    deserialize_json,
+    process_event,
+)
 
 
 def test_valid_event(capsys):
@@ -272,3 +275,12 @@ def test_create_consumer_configuration():
         assert kwargs["group_id"] == "streamforge-consumer"
         assert kwargs["auto_offset_reset"] == "latest"
         assert kwargs["enable_auto_commit"] is True
+        
+def test_malformed_json_returns_none(caplog):
+    malformed_message = b'{"device_id": "TRUCK-001", invalid}'
+
+    with caplog.at_level("ERROR"):
+        result = deserialize_json(malformed_message)
+
+    assert result is None
+    assert "Malformed JSON message received" in caplog.text       
