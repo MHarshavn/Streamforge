@@ -9,6 +9,12 @@ KAFKA_TOPIC = "telemetry-events"
 
 logger = logging.getLogger("streamforge.consumer")
 
+def deserialize_json(value):
+    try:
+        return json.loads(value.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        logger.error("Malformed JSON message received: %s", error)
+        return None
 
 def create_consumer():
     return KafkaConsumer(
@@ -17,7 +23,7 @@ def create_consumer():
         auto_offset_reset="latest",
         enable_auto_commit=True,
         group_id="streamforge-consumer",
-        value_deserializer=lambda value: json.loads(value.decode("utf-8")),
+        value_deserializer=deserialize_json,
     )
 
 
