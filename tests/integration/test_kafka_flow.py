@@ -2,10 +2,10 @@ import time
 import uuid
 
 from producer.telemetry_producer import create_producer
-from stream_processor.consumer import create_consumer
+from stream_processor.consumer import create_consumer, process_event
 
 
-def test_producer_kafka_consumer_flow():
+def test_producer_kafka_consumer_flow(capsys):
     producer = None
     consumer = None
 
@@ -54,6 +54,13 @@ def test_producer_kafka_consumer_flow():
         assert received_event["device_id"] == device_id
         assert received_event["temperature"] == 25.5
         assert received_event["humidity"] == 60.0
+        
+        process_event(received_event)
+
+        captured = capsys.readouterr()
+
+        assert "Processed" in captured.out
+        assert device_id in captured.out
 
 
 
