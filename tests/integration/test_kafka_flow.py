@@ -43,10 +43,10 @@ def test_producer_kafka_consumer_flow(capsys):
 
             for messages in records.values():
                 for message in messages:
-                    if ( 
+                    if (
                         isinstance(message.value, dict)
                         and message.value.get("device_id") == device_id
-                ):
+                    ):
                         received_event = message.value
                         break
 
@@ -54,15 +54,13 @@ def test_producer_kafka_consumer_flow(capsys):
         assert received_event["device_id"] == device_id
         assert received_event["temperature"] == 25.5
         assert received_event["humidity"] == 60.0
-        
+
         process_event(received_event)
 
         captured = capsys.readouterr()
 
         assert "Processed" in captured.out
         assert device_id in captured.out
-
-
 
     finally:
         if producer is not None:
