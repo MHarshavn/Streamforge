@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-from kafka_client import get_recent_events
-from monitoring.kafka_health import check_kafka_health
+from backend_client import get_processed_telemetry, check_backend_health
 
 
 st.set_page_config(
@@ -13,87 +12,84 @@ st.set_page_config(
 
 
 st.title("StreamForge Telemetry Dashboard")
-st.write("Live telemetry from Kafka")
+st.write("Processed truck telemetry from the StreamForge backend")
 
 
-# Keep telemetry data between dashboard refreshes
-if "telemetry_buffer" not in st.session_state:
-    st.session_state.telemetry_buffer = []
+# Keep processed telemetry history between dashboard refreshes.
+if "telemetry_history" not in st.session_state:
+    st.session_state.telemetry_history = []
 
 
 @st.fragment(run_every="5s")
 def live_dashboard():
 
+    # -----------------------------
+    # Backend / State Health
+    # -----------------------------
 
-    # Kafka Health Status
-    kafka_health = check_kafka_health()
+    health = check_backend_health()
 
-    if kafka_health["status"] == "healthy":
-        st.success("🟢 Kafka Status: Healthy")
+    if health.get("status") == "healthy":
+        st.success("🟢 StreamForge Backend: Healthy")
     else:
-        st.error("🔴 Kafka Status: Unhealthy")
+        st.error("🔴 StreamForge Backend: Unhealthy")
 
-    # Read newly available events from Kafka
-    new_events = get_recent_events(30)
+    # Read processed telemetry through FastAPI/state layer.
+    new_events = get_processed_telemetry(limit=500)
 
-    # Add new events to the existing dashboard buffer
-    if new_events:
-        st.session_state.telemetry_buffer.extend(new_events)
+    # Add only new backend snapshots to the local history.  The backend
+    # exposes last_updated, so the same state is not added repeatedly.
+    existing_keys = {
+        (event.get("truck_id"), event.get("timestamp"))
+        for event in st.session_state.telemetry_history
+    }
 
-    # Keep only the latest 100 events
-    st.session_state.telemetry_buffer = (
-        st.session_state.telemetry_buffer[-100:]
+    for event in new_events:
+        key = (event.get("truck_id"), event.get("timestamp"))
+        if key not in existing_keys:
+            st.session_state.telemetry_history.append(event)
+            existing_keys.add(key)
+
+    # Keep only the latest 100 processed snapshots.
+    st.session_state.telemetry_history = (
+        st.session_state.telemetry_history[-100:]
     )
-
-    events = st.session_state.telemetry_buffer
-
-    # Keep telemetry history across dashboard refreshes
-    if "telemetry_history" not in st.session_state:
-        st.session_state.telemetry_history = []
-
-    if events:
-        st.session_state.telemetry_history.extend(events)
-
-        # Keep only the latest 100 events
-        st.session_state.telemetry_history = (
-            st.session_state.telemetry_history[-100:]
-        )
 
     df = pd.DataFrame(st.session_state.telemetry_history)
 
     if not df.empty:
 
         # -----------------------------
-        # Device Filter
+        # Truck Filter
         # -----------------------------
 
-        st.subheader("Device Filter")
+        st.subheader("Truck Filter")
 
-        devices = sorted(
-            df["device_id"].dropna().unique().tolist()
+        trucks = sorted(
+            df["truck_id"].dropna().unique().tolist()
         )
-        device_options = ["All Devices"] + devices
+        truck_options = ["All Trucks"] + trucks
 
-        if "selected_device" not in st.session_state:
-            st.session_state.selected_device = "All Devices"
+        if "selected_truck" not in st.session_state:
+            st.session_state.selected_truck = "All Trucks"
 
         if (
-            st.session_state.selected_device != "All Devices"
-            and st.session_state.selected_device not in device_options
+            st.session_state.selected_truck != "All Trucks"
+            and st.session_state.selected_truck not in truck_options
         ):
-            device_options.append(st.session_state.selected_device)
+            truck_options.append(st.session_state.selected_truck)
 
-        selected_device = st.selectbox(
-            "Select Device",
-            device_options,
-            key="selected_device"
+        selected_truck = st.selectbox(
+            "Select Truck",
+            truck_options,
+            key="selected_truck"
         )
 
-        if selected_device != "All Devices":
-            df = df[df["device_id"] == selected_device].copy()
+        if selected_truck != "All Trucks":
+            df = df[df["truck_id"] == selected_truck].copy()
 
         if df.empty:
-            st.warning("No telemetry available for the selected device.")
+            st.warning("No telemetry available for the selected truck.")
             return
 
         # -----------------------------
@@ -103,11 +99,10 @@ def live_dashboard():
         st.subheader("Telemetry Overview")
 
         avg_temperature = df["temperature"].mean()
-        avg_humidity = df["humidity"].mean()
-        device_count = df["device_id"].nunique()
-        event_count = len(df)
+        truck_count = df["truck_id"].nunique()
+        reading_count = len(df)
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             st.metric(
@@ -117,20 +112,14 @@ def live_dashboard():
 
         with col2:
             st.metric(
-                "Average Humidity",
-                f"{avg_humidity:.2f} %"
+                "Trucks",
+                truck_count
             )
 
         with col3:
             st.metric(
-                "Devices",
-                device_count
-            )
-
-        with col4:
-            st.metric(
-                "Events",
-                event_count
+                "Processed Readings",
+                reading_count
             )
 
         # -----------------------------
@@ -141,44 +130,23 @@ def live_dashboard():
 
         alerts = []
 
-
         for _, event in df.iterrows():
-
             if (
-                (selected_device == "All Devices" or event["device_id"] == selected_device)
+                (selected_truck == "All Trucks" or event["truck_id"] == selected_truck)
                 and event["temperature"] > 35
             ):
                 alerts.append({
-                    "device_id": event["device_id"],
+                    "truck_id": event["truck_id"],
                     "type": "High Temperature",
                     "value": f"{event['temperature']:.2f} °C",
                     "timestamp": event.get("timestamp", "N/A")
                 })
 
-            if (
-                (selected_device == "All Devices" or event["device_id"] == selected_device)
-                and event["humidity"] > 80
-            ):
-                alerts.append({
-                    "device_id": event["device_id"],
-                    "type": "High Humidity",
-                    "value": f"{event['humidity']:.2f} %",
-                    "timestamp": event.get("timestamp", "N/A")
-                })
-
         if alerts:
-
             st.warning(f"⚠️ {len(alerts)} alert(s) detected")
-
             alert_df = pd.DataFrame(alerts)
-
-            st.dataframe(
-                alert_df,
-                use_container_width=True
-            )
-
+            st.dataframe(alert_df, use_container_width=True)
         else:
-
             st.success("✅ No telemetry alerts detected.")
 
         # -----------------------------
@@ -188,16 +156,11 @@ def live_dashboard():
         st.subheader("System Health")
 
         active_alerts = len(alerts)
-
-        affected_devices = len(
-            set(alert["device_id"] for alert in alerts)
+        affected_trucks = len(
+            set(alert["truck_id"] for alert in alerts)
         )
 
-        critical_condition = (
-            (df["temperature"] > 38).any()
-            or
-            (df["humidity"] > 85).any()
-        )
+        critical_condition = (df["temperature"] > 38).any()
 
         if critical_condition:
             system_status = "🔴 Critical"
@@ -209,22 +172,13 @@ def live_dashboard():
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric(
-                "System Status",
-                system_status
-            )
+            st.metric("System Status", system_status)
 
         with col2:
-            st.metric(
-                "Active Alerts",
-                active_alerts
-            )
+            st.metric("Active Alerts", active_alerts)
 
         with col3:
-            st.metric(
-                "Affected Devices",
-                affected_devices
-            )
+            st.metric("Affected Trucks", affected_trucks)
 
         # -----------------------------
         # Telemetry Charts
@@ -232,65 +186,68 @@ def live_dashboard():
 
         st.subheader("Telemetry Charts")
 
-        chart_data = df[["temperature", "humidity"]].copy()
+        chart_data = df.copy()
+        chart_data["timestamp"] = pd.to_datetime(
+            chart_data["timestamp"], errors="coerce"
+        )
+        chart_data = chart_data.sort_values("timestamp")
 
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.write("Temperature")
-            st.line_chart(chart_data["temperature"])
-
-        with col2:
-            st.write("Humidity")
-            st.line_chart(chart_data["humidity"])
+        st.write("Temperature")
+        st.line_chart(
+            chart_data.set_index("timestamp")["temperature"]
+        )
 
         # -----------------------------
-        # Device-wise Analysis
+        # Truck-wise Analysis
         # -----------------------------
 
-        st.subheader("Device-wise Analysis")
+        st.subheader("Truck-wise Analysis")
 
-        device_analysis = (
-            df.groupby("device_id")
+        truck_analysis = (
+            df.groupby("truck_id")
             .agg(
                 Average_Temperature=("temperature", "mean"),
-                Average_Humidity=("humidity", "mean"),
-                Events=("device_id", "count")
+                Readings=("truck_id", "count")
             )
             .reset_index()
         )
 
-        device_analysis["Average_Temperature"] = (
-            device_analysis["Average_Temperature"].round(2)
-        )
-
-        device_analysis["Average_Humidity"] = (
-            device_analysis["Average_Humidity"].round(2)
+        truck_analysis["Average_Temperature"] = (
+            truck_analysis["Average_Temperature"].round(2)
         )
 
         st.dataframe(
-            device_analysis,
+            truck_analysis,
             use_container_width=True
         )
 
         # -----------------------------
-        # Recent Telemetry
+        # Recent Processed Telemetry
         # -----------------------------
 
-        st.subheader("Recent Telemetry")
+        st.subheader("Recent Processed Telemetry")
 
-        filtered_events = df.to_dict("records")
+        recent_events = df.sort_values(
+            "timestamp", ascending=False
+        ).head(30)
 
-        for event in filtered_events:
+        for _, event in recent_events.iterrows():
+            rolling_avg = event.get("rolling_avg_temperature")
+            rolling_text = (
+                f" | 5-min Avg: {rolling_avg:.2f} °C"
+                if pd.notna(rolling_avg)
+                else ""
+            )
+
             st.write(
-                f"**{event.get('device_id', 'N/A')}** | "
-                f"Temperature: {event.get('temperature', 'N/A')} °C | "
-                f"Humidity: {event.get('humidity', 'N/A')} % | "
+                f"**{event.get('truck_id', 'N/A')}** | "
+                f"Temperature: {event.get('temperature', 'N/A')} °C"
+                f"{rolling_text} | "
                 f"Time: {event.get('timestamp', 'N/A')}"
             )
 
     else:
-        st.warning("No telemetry events available.")
+        st.warning("No processed telemetry available from the backend.")
 
 
 live_dashboard()
