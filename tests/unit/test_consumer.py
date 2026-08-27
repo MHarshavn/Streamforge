@@ -1,4 +1,9 @@
-from stream_processor.consumer import process_event
+from unittest.mock import patch
+from stream_processor.consumer import (
+    create_consumer,
+    deserialize_json,
+    process_event,
+)
 
 
 def test_valid_event(capsys):
@@ -154,3 +159,128 @@ def test_invalid_event_type(capsys):
     captured = capsys.readouterr()
 
     assert "expected a JSON object" in captured.out
+def test_temperature_none(capsys):
+    event = {
+        "device_id": "TRUCK-001",
+        "temperature": None,
+        "humidity": 60,
+        "timestamp": "2026-08-17T12:00:00"
+    }
+
+    process_event(event)
+
+    captured = capsys.readouterr()
+
+    assert "missing temperature" in captured.out
+
+
+def test_humidity_none(capsys):
+    event = {
+        "device_id": "TRUCK-001",
+        "temperature": 25.5,
+        "humidity": None,
+        "timestamp": "2026-08-17T12:00:00"
+    }
+
+    process_event(event)
+
+    captured = capsys.readouterr()
+
+    assert "missing humidity" in captured.out
+
+
+def test_empty_device_id(capsys):
+    event = {
+        "device_id": "",
+        "temperature": 25.5,
+        "humidity": 60,
+        "timestamp": "2026-08-17T12:00:00"
+    }
+
+    process_event(event)
+
+    captured = capsys.readouterr()
+
+    assert "missing device_id" in captured.out
+
+
+def test_empty_timestamp(capsys):
+    event = {
+        "device_id": "TRUCK-001",
+        "temperature": 25.5,
+        "humidity": 60,
+        "timestamp": ""
+    }
+
+    process_event(event)
+
+    captured = capsys.readouterr()
+
+    assert "missing timestamp" in captured.out
+def test_invalid_event_logs_error(caplog):
+    event = {
+        "device_id": "TRUCK-001",
+        "temperature": 150,
+        "humidity": 60,
+        "timestamp": "2026-08-17T12:00:00"
+    }
+
+    with caplog.at_level("ERROR"):
+        process_event(event)
+
+        assert "temperature out of range" in caplog.text
+
+
+def test_temperature_boundary_values(capsys):
+    event = {
+        "device_id": "TRUCK-001",
+        "temperature": -50,
+        "humidity": 0,
+        "timestamp": "2026-08-17T12:00:00"
+    }
+
+    process_event(event)
+
+    captured = capsys.readouterr()
+
+    assert "Processed" in captured.out
+    assert "TRUCK-001" in captured.out
+
+
+def test_temperature_and_humidity_upper_boundary(capsys):
+    event = {
+        "device_id": "TRUCK-001",
+        "temperature": 100,
+        "humidity": 100,
+        "timestamp": "2026-08-17T12:00:00"
+    }
+
+    process_event(event)
+
+    captured = capsys.readouterr()
+
+    assert "Processed" in captured.out
+    assert "TRUCK-001" in captured.out
+    
+def test_create_consumer_configuration():
+    with patch("stream_processor.consumer.KafkaConsumer") as mock_consumer:
+        create_consumer()
+
+        mock_consumer.assert_called_once()
+
+        args, kwargs = mock_consumer.call_args
+
+        assert args[0] == "telemetry-events"
+        assert kwargs["bootstrap_servers"] == "localhost:9092"
+        assert kwargs["group_id"] == "streamforge-consumer"
+        assert kwargs["auto_offset_reset"] == "latest"
+        assert kwargs["enable_auto_commit"] is True
+        
+def test_malformed_json_returns_none(caplog):
+    malformed_message = b'{"device_id": "TRUCK-001", invalid}'
+
+    with caplog.at_level("ERROR"):
+        result = deserialize_json(malformed_message)
+
+    assert result is None
+    assert "Malformed JSON message received" in caplog.text       
