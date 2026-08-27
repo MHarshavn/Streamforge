@@ -1,0 +1,163 @@
+# StreamForge — Distributed Python Event Processor
+
+**StreamForge** is a distributed Python streaming engine for processing IoT truck fleet telemetry at scale. This repository contains the **FastAPI backend API** — the first component of the StreamForge platform.
+
+## Architecture
+
+```
+┌───────────┐
+│   Client   │
+└─────┬─────┘
+      │  HTTP
+      ▼
+┌───────────────┐
+│   FastAPI      │  ← Routes (health, telemetry)
+│   API Layer    │
+└─────┬─────────┘
+      │
+      ▼
+┌───────────────┐
+│  Telemetry     │  ← Business logic, validation
+│  Service       │
+└─────┬─────────┘
+      │
+      ▼
+┌───────────────┐
+│ BaseStateStore │  ← Abstract interface (ABC)
+│   (contract)   │
+└─────┬─────────┘
+      │
+      ▼
+┌─────────────────────┐
+│  InMemoryStateStore  │  ← Current (development/testing)
+├─────────────────────┤
+│  RocksDBStateStore   │  ← Future (persistent local state)
+│  KafkaStateStore     │  ← Future (changelog topic reads)
+└─────────────────────┘
+```
+
+The API depends **only** on the `BaseStateStore` abstraction. Switching backends requires only a configuration change — no API code modifications.
+
+## Key Features
+
+- **Telemetry Ingestion** — Single-event and high-throughput batch endpoints
+- **5-Minute Rolling Average** — Event-time windowed aggregation per truck
+- **State Retrieval** — Per-truck and paginated list endpoints
+- **Health Monitoring** — Component-level health reporting
+- **Pluggable Backends** — Abstract state-store for future Kafka/RocksDB integration
+- **OpenAPI Documentation** — Auto-generated Swagger UI and ReDoc
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- pip
+
+### Installation
+
+```bash
+# Clone the repository
+cd FastApi
+
+# Install in development mode with test dependencies
+pip install -e ".[dev]"
+```
+
+### Configuration
+
+Copy the environment template and adjust as needed:
+
+```bash
+cp .env.example .env
+```
+
+Key settings:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `STREAMFORGE_STATE_BACKEND` | `in_memory` | State store backend |
+| `STREAMFORGE_WINDOW_SIZE_SECONDS` | `300` | Rolling window size (5 min) |
+| `STREAMFORGE_DEBUG` | `false` | Enable debug mode |
+| `STREAMFORGE_PORT` | `8000` | API server port |
+
+### Running Locally
+
+```bash
+uvicorn streamforge.main:app --reload
+```
+
+The API will be available at `http://localhost:8000`.
+
+### API Documentation
+
+| URL | Description |
+|-----|-------------|
+| [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger UI |
+| [http://localhost:8000/redoc](http://localhost:8000/redoc) | ReDoc |
+| [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json) | OpenAPI spec |
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | System health check |
+| `POST` | `/telemetry/ingest` | Ingest a single telemetry event |
+| `POST` | `/telemetry/ingest/batch` | Ingest up to 1000 events |
+| `GET` | `/telemetry/` | List all tracked trucks (paginated) |
+| `GET` | `/telemetry/{truck_id}` | Get processed state for a truck |
+
+### Example: Ingest Telemetry
+
+```bash
+curl -X POST http://localhost:8000/telemetry/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "truck_id": "TRUCK-00001",
+    "temperature": 22.5,
+    "timestamp": "2026-08-25T12:00:00Z"
+  }'
+```
+
+### Example: Get Truck State
+
+```bash
+curl http://localhost:8000/telemetry/TRUCK-00001
+```
+
+## 5-Minute Rolling Average
+
+StreamForge calculates a **rolling average temperature** per truck using **event timestamps** (not server processing time):
+
+- Each telemetry event carries a timestamp
+- The rolling window spans the 5 minutes preceding the **latest** event time for that truck
+- Readings outside the window are automatically pruned
+- The average is recalculated on every new ingestion and retrieval
+
+This mirrors the tumbling/hopping window semantics that Faust or Bytewax would use in production.
+
+## Testing
+
+```bash
+pytest tests/ -v
+```
+
+All tests run against `InMemoryStateStore` — no Kafka, RocksDB, or external services required.
+
+## Future Integration
+
+The StreamForge API is designed for seamless integration with:
+
+| Component | Integration Point |
+|-----------|------------------|
+| **Apache Kafka** | `TelemetryService.ingest()` will publish to Kafka topics |
+| **Faust / Bytewax** | Stream processors will write aggregated state to the state store |
+| **RocksDB** | `RocksDBStateStore` will implement `BaseStateStore` for persistent local state |
+| **Prometheus** | Metrics middleware will expose processing lag, events/sec |
+| **React Flow** | Topology dashboard will consume `/health` and worker endpoints |
+
+To add a new backend, implement `BaseStateStore` and register it in `streamforge/main.py:_build_state_store()`.
+
+## License
+
+MIT
