@@ -62,9 +62,10 @@ class BaseStateStore(ABC):
 
 
 class _Reading(NamedTuple):
-    """A single temperature reading stored alongside its event timestamp."""
+    """A single telemetry reading stored alongside its event timestamp."""
 
     temperature: float
+    humidity: float
     event_time: datetime
 
 
@@ -101,7 +102,11 @@ class InMemoryStateStore(BaseStateStore):
         async with self._lock:
             readings = self._readings[event.truck_id]
             readings.append(
-                _Reading(temperature=event.temperature, event_time=event.timestamp)
+            _Reading(
+                temperature=event.temperature,
+                humidity=event.humidity,
+                event_time=event.timestamp,
+                )
             )
             # Keep sorted by event time so pruning is efficient
             readings.sort(key=lambda r: r.event_time)
@@ -174,6 +179,7 @@ class InMemoryStateStore(BaseStateStore):
         return TruckTelemetryState(
             truck_id=truck_id,
             latest_temperature=latest.temperature,
+            latest_humidity=latest.humidity,
             rolling_avg_temperature=round(avg, 4),
             window_start=readings[0].event_time,
             window_end=latest.event_time,
