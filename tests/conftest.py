@@ -44,30 +44,34 @@ async def client(app) -> AsyncClient:
 VALID_EVENT = {
     "truck_id": "TRUCK-00001",
     "temperature": 22.5,
+    "humidity": 60.0,
     "timestamp": "2026-08-25T12:00:00Z",
 }
 
 VALID_EVENT_2 = {
     "truck_id": "TRUCK-00001",
     "temperature": 24.0,
+    "humidity": 62.0,
     "timestamp": "2026-08-25T12:02:00Z",
 }
 
 VALID_EVENT_3 = {
     "truck_id": "TRUCK-00001",
     "temperature": 26.0,
+    "humidity": 64.0,
     "timestamp": "2026-08-25T12:04:00Z",
 }
 
-# Event outside the 5-minute window relative to event_3
 VALID_EVENT_OLD = {
     "truck_id": "TRUCK-00001",
     "temperature": 20.0,
+    "humidity": 55.0,
     "timestamp": "2026-08-25T11:58:00Z",
 }
 
 VALID_EVENT_OTHER_TRUCK = {
     "truck_id": "TRUCK-00002",
     "temperature": 18.0,
+    "humidity": 50.0,
     "timestamp": "2026-08-25T12:00:00Z",
 }

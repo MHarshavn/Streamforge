@@ -64,6 +64,10 @@ def get_processed_telemetry(limit=500):
                 "latest_temperature",
                 truck.get("temperature")
             )
+            humidity = truck.get(
+                "latest_humidity",
+                truck.get("humidity")
+            )
 
             rolling_avg = truck.get(
                 "rolling_avg_temperature",
@@ -83,6 +87,7 @@ def get_processed_telemetry(limit=500):
                 "truck_id": truck_id,
                 "timestamp": timestamp,
                 "temperature": temperature,
+		"humidity": humidity,
                 "rolling_avg_temperature": rolling_avg
             })
 

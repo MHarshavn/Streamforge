@@ -6,7 +6,7 @@ from backend_client import get_processed_telemetry, check_backend_health
 
 st.set_page_config(
     page_title="StreamForge Dashboard",
-    page_icon="📡",
+    page_icon="ðŸ“¡",
     layout="wide"
 )
 
@@ -30,9 +30,9 @@ def live_dashboard():
     health = check_backend_health()
 
     if health.get("status") == "healthy":
-        st.success("🟢 StreamForge Backend: Healthy")
+        st.success("ðŸŸ¢ StreamForge Backend: Healthy")
     else:
-        st.error("🔴 StreamForge Backend: Unhealthy")
+        st.error("ðŸ”´ StreamForge Backend: Unhealthy")
 
     # Read processed telemetry through FastAPI/state layer.
     new_events = get_processed_telemetry(limit=500)
@@ -99,10 +99,11 @@ def live_dashboard():
         st.subheader("Telemetry Overview")
 
         avg_temperature = df["temperature"].mean()
+        avg_humidity = df["humidity"].mean()
         truck_count = df["truck_id"].nunique()
         reading_count = len(df)
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             st.metric(
@@ -112,11 +113,17 @@ def live_dashboard():
 
         with col2:
             st.metric(
+                "Average Humidity",
+                f"{avg_humidity:.2f} %"
+            )
+
+        with col3:
+            st.metric(
                 "Trucks",
                 truck_count
             )
 
-        with col3:
+        with col4:
             st.metric(
                 "Processed Readings",
                 reading_count
@@ -138,16 +145,16 @@ def live_dashboard():
                 alerts.append({
                     "truck_id": event["truck_id"],
                     "type": "High Temperature",
-                    "value": f"{event['temperature']:.2f} °C",
+                    "value": f"{event['temperature']:.2f} Â°C",
                     "timestamp": event.get("timestamp", "N/A")
                 })
 
         if alerts:
-            st.warning(f"⚠️ {len(alerts)} alert(s) detected")
+            st.warning(f"âš ï¸ {len(alerts)} alert(s) detected")
             alert_df = pd.DataFrame(alerts)
             st.dataframe(alert_df, use_container_width=True)
         else:
-            st.success("✅ No telemetry alerts detected.")
+            st.success("âœ… No telemetry alerts detected.")
 
         # -----------------------------
         # System Health Status
@@ -163,11 +170,11 @@ def live_dashboard():
         critical_condition = (df["temperature"] > 38).any()
 
         if critical_condition:
-            system_status = "🔴 Critical"
+            system_status = "ðŸ”´ Critical"
         elif active_alerts > 0:
-            system_status = "🟡 Warning"
+            system_status = "ðŸŸ¡ Warning"
         else:
-            system_status = "🟢 Healthy"
+            system_status = "ðŸŸ¢ Healthy"
 
         col1, col2, col3 = st.columns(3)
 
@@ -195,6 +202,11 @@ def live_dashboard():
         st.write("Temperature")
         st.line_chart(
             chart_data.set_index("timestamp")["temperature"]
+        )
+
+        st.write("Humidity")
+        st.line_chart(
+            chart_data.set_index("timestamp")["humidity"]
         )
 
         # -----------------------------
@@ -234,14 +246,14 @@ def live_dashboard():
         for _, event in recent_events.iterrows():
             rolling_avg = event.get("rolling_avg_temperature")
             rolling_text = (
-                f" | 5-min Avg: {rolling_avg:.2f} °C"
+                f" | 5-min Avg: {rolling_avg:.2f} Â°C"
                 if pd.notna(rolling_avg)
                 else ""
             )
 
             st.write(
                 f"**{event.get('truck_id', 'N/A')}** | "
-                f"Temperature: {event.get('temperature', 'N/A')} °C"
+                f"Temperature: {event.get('temperature', 'N/A')} Â°C"
                 f"{rolling_text} | "
                 f"Time: {event.get('timestamp', 'N/A')}"
             )
