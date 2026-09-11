@@ -1,13 +1,18 @@
 import json
+import urllib.request
 import logging
+import uuid
 
 from kafka import KafkaConsumer
 
 
+
 KAFKA_BROKER = "localhost:9092"
 KAFKA_TOPIC = "telemetry-events"
+BACKEND_URL = "http://127.0.0.1:8001/telemetry/ingest"
 
 logger = logging.getLogger("streamforge.consumer")
+
 
 def deserialize_json(value):
     try:
@@ -16,105 +21,120 @@ def deserialize_json(value):
         logger.error("Malformed JSON message received: %s", error)
         return None
 
-def create_consumer():
+
+def create_consumer(group_id="streamforge-consumer"):
     return KafkaConsumer(
         KAFKA_TOPIC,
         bootstrap_servers=KAFKA_BROKER,
         auto_offset_reset="latest",
         enable_auto_commit=True,
-        group_id="streamforge-consumer",
+        group_id=group_id,
         value_deserializer=deserialize_json,
     )
 
 
 def process_event(event):
     if not isinstance(event, dict):
-        logger.error("Invalid event: expected a JSON object")
-        print("Invalid event: expected a JSON object")
-        return
+        message = "Invalid event: expected a JSON object"
+        logger.error(message)
+        print(message)
+        return False
 
     device_id = event.get("device_id")
     temperature = event.get("temperature")
     humidity = event.get("humidity")
     timestamp = event.get("timestamp")
 
+    # Required-field validation
     if not device_id:
-        logger.error("Invalid event: missing device_id")
-        print("Invalid event: missing device_id")
-        return
+        message = "Invalid telemetry event: missing device_id"
+        logger.error(message)
+        print(message)
+        return False
 
     if temperature is None:
-        logger.error(
-            "Invalid event from %s: missing temperature",
-            device_id,
-        )
-        print(f"Invalid event from {device_id}: missing temperature")
-        return
+        message = "Invalid telemetry event: missing temperature"
+        logger.error(message)
+        print(message)
+        return False
 
     if humidity is None:
-        logger.error(
-            "Invalid event from %s: missing humidity",
-            device_id,
-        )
-        print(f"Invalid event from {device_id}: missing humidity")
-        return
+        message = "Invalid telemetry event: missing humidity"
+        logger.error(message)
+        print(message)
+        return False
 
     if not timestamp:
-        logger.error(
-            "Invalid event from %s: missing timestamp",
-            device_id,
-        )
-        print(f"Invalid event from {device_id}: missing timestamp")
-        return
+        message = "Invalid telemetry event: missing timestamp"
+        logger.error(message)
+        print(message)
+        return False
 
+    # Numeric validation
     try:
         temperature = float(temperature)
-        humidity = float(humidity)
-
     except (TypeError, ValueError):
-        logger.error(
-            "Invalid event from %s: temperature/humidity must be numeric",
-            device_id,
-        )
-        print(
-            f"Invalid event from {device_id}: "
-            "temperature/humidity must be numeric"
-        )
-        return
+        message = "Invalid telemetry event: temperature must be numeric"
+        logger.error(message)
+        print(message)
+        return False
 
-    if not -50 <= temperature <= 100:
-        logger.error(
-            "Invalid event from %s: temperature out of range",
-            device_id,
-        )
-        print(
-            f"Invalid event from {device_id}: "
-            "temperature out of range"
-        )
-        return
+    try:
+        humidity = float(humidity)
+    except (TypeError, ValueError):
+        message = "Invalid telemetry event: humidity must be numeric"
+        logger.error(message)
+        print(message)
+        return False
 
-    if not 0 <= humidity <= 100:
-        logger.error(
-            "Invalid event from %s: humidity out of range",
-            device_id,
-        )
-        print(
-            f"Invalid event from {device_id}: "
-            "humidity out of range"
-        )
-        return
+    # Range validation
+    if temperature < -50 or temperature > 100:
+        message = "Invalid telemetry event: temperature out of range"
+        logger.error(message)
+        print(message)
+        return False
 
-    logger.info(
-        "Processed telemetry event from %s",
-        device_id,
-    )
+    if humidity < 0 or humidity > 100:
+        message = "Invalid telemetry event: humidity out of range"
+        logger.error(message)
+        print(message)
+        return False
 
-    print(
-        f"Processed | {device_id} | "
-        f"Temp: {temperature}°C | "
-        f"Humidity: {humidity}% | "
-        f"Time: {timestamp}"
-    )
+    # Convert device_id to the truck_id expected by FastAPI.
+    backend_event = {
+        "truck_id": device_id,
+        "temperature": temperature,
+        "humidity": humidity,
+        "timestamp": timestamp,
+    }
+
+    try:
+        request_body = json.dumps(backend_event).encode("utf-8")
+
+        request = urllib.request.Request(
+            BACKEND_URL,
+            data=request_body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(request, timeout=5) as response:
+            if 200 <= response.status < 300:
+                print(
+                    f"Processed | {device_id} | "
+                    f"Temp: {temperature}°C | "
+                    f"Humidity: {humidity}% | "
+                    f"Time: {timestamp} | "
+                    f"Backend: OK"
+                )
+                return True
+
+    except Exception as exc:
+        logger.error("Backend error for %s: %s", device_id, exc)
+        print(f"Backend error for {device_id}: {exc}")
+        return False
+
+    return False
 
 
 def main():
@@ -129,7 +149,9 @@ def main():
     logger.info("Kafka broker: %s", KAFKA_BROKER)
     logger.info("Kafka topic: %s", KAFKA_TOPIC)
 
-    consumer = create_consumer()
+    consumer = create_consumer(
+        group_id=f"streamforge-test-{uuid.uuid4()}"
+    )
 
     try:
         for message in consumer:

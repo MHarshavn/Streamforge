@@ -14,7 +14,9 @@ def test_valid_event(capsys):
         "timestamp": "2026-08-17T12:00:00"
     }
 
-    process_event(event)
+    with patch("stream_processor.consumer.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 201
+        process_event(event)
 
     captured = capsys.readouterr()
 
@@ -239,7 +241,9 @@ def test_temperature_boundary_values(capsys):
         "timestamp": "2026-08-17T12:00:00"
     }
 
-    process_event(event)
+    with patch("stream_processor.consumer.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 201
+        process_event(event)
 
     captured = capsys.readouterr()
 
@@ -255,7 +259,9 @@ def test_temperature_and_humidity_upper_boundary(capsys):
         "timestamp": "2026-08-17T12:00:00"
     }
 
-    process_event(event)
+    with patch("stream_processor.consumer.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value.status = 201
+        process_event(event)
 
     captured = capsys.readouterr()
 

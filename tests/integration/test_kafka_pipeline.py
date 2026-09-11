@@ -98,4 +98,4 @@ def test_invalid_telemetry_is_detected():
 
     result = process_event(invalid_event)
 
-    assert result is None
+    assert result is False

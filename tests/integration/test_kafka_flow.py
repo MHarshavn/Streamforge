@@ -19,7 +19,9 @@ def test_producer_kafka_consumer_flow(capsys):
     }
 
     try:
-        consumer = create_consumer()
+        consumer = create_consumer(
+            group_id=f"streamforge-test-{uuid.uuid4()}"
+        )
 
         # Allow the consumer to connect and receive its Kafka partition.
         consumer.poll(timeout_ms=1000)
