@@ -6,7 +6,7 @@ from backend_client import get_processed_telemetry, check_backend_health
 
 st.set_page_config(
     page_title="StreamForge Dashboard",
-    page_icon="ðŸ“¡",
+    page_icon="",
     layout="wide"
 )
 
@@ -30,9 +30,9 @@ def live_dashboard():
     health = check_backend_health()
 
     if health.get("status") == "healthy":
-        st.success("ðŸŸ¢ StreamForge Backend: Healthy")
+        st.success(" StreamForge Backend: Healthy")
     else:
-        st.error("ðŸ”´ StreamForge Backend: Unhealthy")
+        st.error(" StreamForge Backend: Unhealthy")
 
     # Read processed telemetry through FastAPI/state layer.
     new_events = get_processed_telemetry(limit=500)
@@ -108,7 +108,7 @@ def live_dashboard():
         with col1:
             st.metric(
                 "Average Temperature",
-                f"{avg_temperature:.2f} °C"
+                f"{avg_temperature:.2f} C"
             )
 
         with col2:
@@ -145,16 +145,16 @@ def live_dashboard():
                 alerts.append({
                     "truck_id": event["truck_id"],
                     "type": "High Temperature",
-                    "value": f"{event['temperature']:.2f} Â°C",
+                    "value": f"{event['temperature']:.2f}  C",
                     "timestamp": event.get("timestamp", "N/A")
                 })
 
         if alerts:
-            st.warning(f"âš ï¸ {len(alerts)} alert(s) detected")
+            st.warning(f" {len(alerts)} alert(s) detected")
             alert_df = pd.DataFrame(alerts)
             st.dataframe(alert_df, use_container_width=True)
         else:
-            st.success("âœ… No telemetry alerts detected.")
+            st.success(" No telemetry alerts detected.")
 
         # -----------------------------
         # System Health Status
@@ -170,11 +170,11 @@ def live_dashboard():
         critical_condition = (df["temperature"] > 38).any()
 
         if critical_condition:
-            system_status = "ðŸ”´ Critical"
+            system_status = " Critical"
         elif active_alerts > 0:
-            system_status = "ðŸŸ¡ Warning"
+            system_status = " Warning"
         else:
-            system_status = "ðŸŸ¢ Healthy"
+            system_status = " Healthy"
 
         col1, col2, col3 = st.columns(3)
 
@@ -246,14 +246,14 @@ def live_dashboard():
         for _, event in recent_events.iterrows():
             rolling_avg = event.get("rolling_avg_temperature")
             rolling_text = (
-                f" | 5-min Avg: {rolling_avg:.2f} Â°C"
+                f" | 5-min Avg: {rolling_avg:.2f}  C"
                 if pd.notna(rolling_avg)
                 else ""
             )
 
             st.write(
                 f"**{event.get('truck_id', 'N/A')}** | "
-                f"Temperature: {event.get('temperature', 'N/A')} Â°C"
+                f"Temperature: {event.get('temperature', 'N/A')}  C"
                 f"{rolling_text} | "
                 f"Time: {event.get('timestamp', 'N/A')}"
             )

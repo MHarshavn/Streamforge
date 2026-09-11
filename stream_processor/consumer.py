@@ -1,8 +1,10 @@
 import json
 import urllib.request
 import logging
+import uuid
 
 from kafka import KafkaConsumer
+
 
 
 KAFKA_BROKER = "localhost:9092"
@@ -20,15 +22,15 @@ def deserialize_json(value):
         return None
 
 
-def create_consumer():
+def create_consumer(group_id="streamforge-consumer"):
     return KafkaConsumer(
-    KAFKA_TOPIC,
-    bootstrap_servers=KAFKA_BROKER,
-    auto_offset_reset="latest",
-    enable_auto_commit=True,
-    group_id="streamforge-consumer",
-    value_deserializer=deserialize_json,
-)
+        KAFKA_TOPIC,
+        bootstrap_servers=KAFKA_BROKER,
+        auto_offset_reset="latest",
+        enable_auto_commit=True,
+        group_id=group_id,
+        value_deserializer=deserialize_json,
+    )
 
 
 def process_event(event):
@@ -147,7 +149,9 @@ def main():
     logger.info("Kafka broker: %s", KAFKA_BROKER)
     logger.info("Kafka topic: %s", KAFKA_TOPIC)
 
-    consumer = create_consumer()
+    consumer = create_consumer(
+        group_id=f"streamforge-test-{uuid.uuid4()}"
+    )
 
     try:
         for message in consumer:
