@@ -1,7 +1,7 @@
 import json
 import urllib.request
 import logging
-import uuid
+import os
 
 from kafka import KafkaConsumer
 
@@ -10,6 +10,15 @@ from kafka import KafkaConsumer
 KAFKA_BROKER = "localhost:9092"
 KAFKA_TOPIC = "telemetry-events"
 BACKEND_URL = "http://127.0.0.1:8001/telemetry/ingest"
+CONSUMER_GROUP = os.getenv(
+    "STREAMFORGE_CONSUMER_GROUP",
+    "streamforge-consumer",
+)
+
+WORKER_ID = os.getenv(
+    "STREAMFORGE_WORKER_ID",
+    "worker-1",
+)
 
 logger = logging.getLogger("streamforge.consumer")
 
@@ -149,9 +158,23 @@ def main():
     logger.info("Kafka broker: %s", KAFKA_BROKER)
     logger.info("Kafka topic: %s", KAFKA_TOPIC)
 
-    consumer = create_consumer(
-        group_id=f"streamforge-test-{uuid.uuid4()}"
-    )
+def main():
+    print("====================================")
+    print(" StreamForge Stream Processor")
+    print("====================================")
+    print(f"Worker ID    : {WORKER_ID}")
+    print(f"Consumer Group: {CONSUMER_GROUP}")
+    print(f"Kafka Broker : {KAFKA_BROKER}")
+    print(f"Kafka Topic  : {KAFKA_TOPIC}")
+    print("Waiting for telemetry events...\n")
+
+    logger.info("Starting StreamForge stream processor")
+    logger.info("Worker ID: %s", WORKER_ID)
+    logger.info("Consumer group: %s", CONSUMER_GROUP)
+    logger.info("Kafka broker: %s", KAFKA_BROKER)
+    logger.info("Kafka topic: %s", KAFKA_TOPIC)
+
+    consumer = create_consumer(group_id=CONSUMER_GROUP)
 
     try:
         for message in consumer:

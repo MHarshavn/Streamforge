@@ -267,7 +267,7 @@ def test_temperature_and_humidity_upper_boundary(capsys):
 
     assert "Processed" in captured.out
     assert "TRUCK-001" in captured.out
-    
+
 def test_create_consumer_configuration():
     with patch("stream_processor.consumer.KafkaConsumer") as mock_consumer:
         create_consumer()
@@ -281,7 +281,7 @@ def test_create_consumer_configuration():
         assert kwargs["group_id"] == "streamforge-consumer"
         assert kwargs["auto_offset_reset"] == "latest"
         assert kwargs["enable_auto_commit"] is True
-        
+
 def test_malformed_json_returns_none(caplog):
     malformed_message = b'{"device_id": "TRUCK-001", invalid}'
 
@@ -289,4 +289,12 @@ def test_malformed_json_returns_none(caplog):
         result = deserialize_json(malformed_message)
 
     assert result is None
-    assert "Malformed JSON message received" in caplog.text       
+    assert "Malformed JSON message received" in caplog.text
+
+def test_create_consumer_custom_group():
+    with patch("stream_processor.consumer.KafkaConsumer") as mock_consumer:
+        create_consumer(group_id="streamforge-worker-group")
+
+        _, kwargs = mock_consumer.call_args
+
+        assert kwargs["group_id"] == "streamforge-worker-group"
