@@ -150,18 +150,6 @@ def main():
     print("====================================")
     print(" StreamForge Stream Processor")
     print("====================================")
-    print(f"Kafka Broker : {KAFKA_BROKER}")
-    print(f"Kafka Topic  : {KAFKA_TOPIC}")
-    print("Waiting for telemetry events...\n")
-
-    logger.info("Starting StreamForge stream processor")
-    logger.info("Kafka broker: %s", KAFKA_BROKER)
-    logger.info("Kafka topic: %s", KAFKA_TOPIC)
-
-def main():
-    print("====================================")
-    print(" StreamForge Stream Processor")
-    print("====================================")
     print(f"Worker ID    : {WORKER_ID}")
     print(f"Consumer Group: {CONSUMER_GROUP}")
     print(f"Kafka Broker : {KAFKA_BROKER}")
