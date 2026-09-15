@@ -2,10 +2,30 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Response
+from pydantic import BaseModel
 
 from streamforge.metrics import metrics_payload, registry
 
 router = APIRouter(tags=["Observability"])
+
+
+class WorkerHeartbeat(BaseModel):
+    worker_id: str
+    host: str
+    group_id: str
+    partitions: list[int] = []
+
+
+@router.post("/workers/heartbeat", status_code=204)
+async def worker_heartbeat(payload: WorkerHeartbeat) -> Response:
+    registry.heartbeat(
+        payload.worker_id,
+        payload.host,
+        payload.group_id,
+        payload.partitions,
+    )
+    return Response(status_code=204)
+
 
 
 @router.get("/metrics", include_in_schema=False)
