@@ -1000,3 +1000,21 @@ Additional detailed documentation:
 # License
 
 MIT
+
+
+## Distributed production path
+
+The project now includes the distributed-review path required by the project specification:
+
+- Kafka topic initialization with 20 partitions.
+- Bytewax event-time sliding windows for 5-minute temperature averages.
+- RocksDB-backed persistent truck state.
+- Idempotent RocksDB event application.
+- Kafka state-changelog snapshots from worker consumers.
+- Manual Kafka offset commits after successful backend processing.
+- Worker heartbeats, partition visibility and topology APIs.
+- Prometheus metrics for processed events, failures, processing latency, lag and active workers.
+- React Flow topology dashboard.
+- Throughput benchmark and failure/recovery runbook.
+
+See `docs/distributed-review.md` for the exact mid-project/final-review procedure.
