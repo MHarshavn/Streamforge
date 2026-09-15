@@ -278,9 +278,9 @@ def test_create_consumer_configuration():
 
         assert args[0] == "telemetry-events"
         assert kwargs["bootstrap_servers"] == "localhost:9092"
-        assert kwargs["group_id"] == "streamforge-consumer"
-        assert kwargs["auto_offset_reset"] == "latest"
-        assert kwargs["enable_auto_commit"] is True
+        assert kwargs["group_id"] == "streamforge-workers"
+        assert kwargs["auto_offset_reset"] == "earliest"
+        assert kwargs["enable_auto_commit"] is False
 
 def test_malformed_json_returns_none(caplog):
     malformed_message = b'{"device_id": "TRUCK-001", invalid}'
