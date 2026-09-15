@@ -8,7 +8,8 @@ import socket
 import time
 import urllib.request
 
-from kafka import KafkaConsumer, KafkaProducer
+from kafka import KafkaConsumer, KafkaProducer, TopicPartition
+from kafka.structs import OffsetAndMetadata
 
 from streamforge.metrics import (
     EVENTS_FAILED,
@@ -203,7 +204,7 @@ def main():
                     changelog.flush()
                     consumer.commit(
                         offsets={
-                            topic_partition: last_offset + 1,
+                            topic_partition: OffsetAndMetadata(last_offset + 1, None),
                         }
                     )
     except KeyboardInterrupt:
