@@ -9,7 +9,7 @@ from kafka import KafkaConsumer
 
 KAFKA_BROKER = "localhost:9092"
 KAFKA_TOPIC = "telemetry-events"
-BACKEND_URL = "http://127.0.0.1:8001/telemetry/ingest"
+BACKEND_URL = "http://127.0.0.1:8000/telemetry/ingest"
 CONSUMER_GROUP = os.getenv(
     "STREAMFORGE_CONSUMER_GROUP",
     "streamforge-consumer",
