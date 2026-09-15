@@ -52,10 +52,10 @@ async def test_health_components_include_state_store(client: AsyncClient) -> Non
 
 
 @pytest.mark.asyncio
-async def test_health_kafka_not_configured(client: AsyncClient) -> None:
-    """Kafka component honestly reports as not_configured."""
+async def test_health_kafka_configured(client: AsyncClient) -> None:
+    """Kafka component reports the configured distributed topology."""
     resp = await client.get("/health")
     components = resp.json()["components"]
     kafka = next((c for c in components if c["name"] == "kafka"), None)
     assert kafka is not None
-    assert kafka["status"] == "not_configured"
+    assert kafka["status"] == "configured"
