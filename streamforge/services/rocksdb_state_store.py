@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
+import hashlib
 
 from rocksdict import Rdict
 
@@ -29,10 +30,16 @@ class RocksDBStateStore(BaseStateStore):
     async def store_telemetry(self, event: TelemetryEvent) -> None:
         async with self._lock:
             readings = list(self._db.get(event.truck_id, []))
+            event_id = hashlib.sha256(
+                f"{event.truck_id}|{event.timestamp.isoformat()}|{event.temperature}|{event.humidity}".encode()
+            ).hexdigest()
+            if any(item.get("event_id") == event_id for item in readings):
+                return
             readings.append({
                 "temperature": event.temperature,
                 "humidity": event.humidity,
                 "event_time": event.timestamp.isoformat(),
+                "event_id": event_id,
             })
             readings.sort(key=lambda item: item["event_time"])
             latest = datetime.fromisoformat(readings[-1]["event_time"])
