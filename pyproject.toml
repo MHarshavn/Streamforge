@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "streamforge"
-version = "0.1.0"
-description = "StreamForge — Distributed Python Event Processor API"
+version = "1.0.0"
+description = "StreamForge — Distributed Python Event Processor"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -19,6 +19,8 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "kafka-python>=2.0.2",
+    "rocksdict>=0.3.29",
+    "prometheus-client>=0.20.0",
     "streamlit>=1.40.0",
     "pandas>=2.2.0",
     "requests>=2.32.0",
