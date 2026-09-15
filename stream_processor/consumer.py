@@ -1,15 +1,25 @@
 import json
-import urllib.request
 import logging
-import uuid
+import os
+import urllib.request
 
 from kafka import KafkaConsumer
 
 
-
 KAFKA_BROKER = "localhost:9092"
 KAFKA_TOPIC = "telemetry-events"
-BACKEND_URL = "http://127.0.0.1:8001/telemetry/ingest"
+BACKEND_URL = os.getenv(
+    "STREAMFORGE_BACKEND_URL",
+    "http://127.0.0.1:8001/telemetry/ingest",
+)
+CONSUMER_GROUP = os.getenv(
+    "STREAMFORGE_CONSUMER_GROUP",
+    "streamforge-consumer",
+)
+WORKER_ID = os.getenv(
+    "STREAMFORGE_WORKER_ID",
+    "worker-1",
+)
 
 logger = logging.getLogger("streamforge.consumer")
 
@@ -45,7 +55,6 @@ def process_event(event):
     humidity = event.get("humidity")
     timestamp = event.get("timestamp")
 
-    # Required-field validation
     if not device_id:
         message = "Invalid telemetry event: missing device_id"
         logger.error(message)
@@ -70,7 +79,6 @@ def process_event(event):
         print(message)
         return False
 
-    # Numeric validation
     try:
         temperature = float(temperature)
     except (TypeError, ValueError):
@@ -87,7 +95,6 @@ def process_event(event):
         print(message)
         return False
 
-    # Range validation
     if temperature < -50 or temperature > 100:
         message = "Invalid telemetry event: temperature out of range"
         logger.error(message)
@@ -100,7 +107,6 @@ def process_event(event):
         print(message)
         return False
 
-    # Convert device_id to the truck_id expected by FastAPI.
     backend_event = {
         "truck_id": device_id,
         "temperature": temperature,
@@ -110,7 +116,6 @@ def process_event(event):
 
     try:
         request_body = json.dumps(backend_event).encode("utf-8")
-
         request = urllib.request.Request(
             BACKEND_URL,
             data=request_body,
@@ -141,22 +146,25 @@ def main():
     print("====================================")
     print(" StreamForge Stream Processor")
     print("====================================")
-    print(f"Kafka Broker : {KAFKA_BROKER}")
-    print(f"Kafka Topic  : {KAFKA_TOPIC}")
+    print(f"Worker ID     : {WORKER_ID}")
+    print(f"Consumer Group: {CONSUMER_GROUP}")
+    print(f"Backend URL   : {BACKEND_URL}")
+    print(f"Kafka Broker  : {KAFKA_BROKER}")
+    print(f"Kafka Topic   : {KAFKA_TOPIC}")
     print("Waiting for telemetry events...\n")
 
     logger.info("Starting StreamForge stream processor")
+    logger.info("Worker ID: %s", WORKER_ID)
+    logger.info("Consumer group: %s", CONSUMER_GROUP)
+    logger.info("Backend URL: %s", BACKEND_URL)
     logger.info("Kafka broker: %s", KAFKA_BROKER)
     logger.info("Kafka topic: %s", KAFKA_TOPIC)
 
-    consumer = create_consumer(
-        group_id=f"streamforge-test-{uuid.uuid4()}"
-    )
+    consumer = create_consumer(group_id=CONSUMER_GROUP)
 
     try:
         for message in consumer:
-            event = message.value
-            process_event(event)
+            process_event(message.value)
 
     except KeyboardInterrupt:
         logger.info("Stream processor stopped by user")
@@ -176,5 +184,4 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
-
     main()
