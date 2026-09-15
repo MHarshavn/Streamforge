@@ -12,9 +12,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
-      - run: pytest -q
+
+      - name: Start Kafka
+        run: docker compose -f docker/compose.yaml up -d kafka kafka-init
+
+      - name: Wait for Kafka
+        run: |
+          for i in {1..30}; do
+            if nc -z localhost 9092; then
+              echo "Kafka is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Kafka did not become ready"
+          docker compose -f docker/compose.yaml ps
+          docker compose -f docker/compose.yaml logs kafka
+          exit 1
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Stop Kafka
+        if: always()
+        run: docker compose -f docker/compose.yaml down
