@@ -16,7 +16,7 @@ import bytewax.operators as op
 from bytewax.connectors.kafka import KafkaSinkMessage
 from bytewax.connectors.kafka import operators as kop
 from bytewax.dataflow import Dataflow
-from bytewax.operators.windowing import EventClock, TumblingWindower
+from bytewax.operators.windowing import EventClock, SlidingWindower
 
 BROKERS = os.getenv("STREAMFORGE_KAFKA_BROKER", "localhost:9092").split(",")
 INPUT_TOPIC = os.getenv("STREAMFORGE_KAFKA_TOPIC", "telemetry-events")
@@ -77,8 +77,9 @@ windowed = op.fold_window(
     "five-minute-event-window",
     keyed,
     EventClock(event_time, wait_for_system_duration=timedelta(seconds=10)),
-    TumblingWindower(
+    SlidingWindower(
         length=timedelta(minutes=5),
+        offset=timedelta(seconds=10),
         align_to=datetime(2026, 1, 1, tzinfo=timezone.utc),
     ),
     builder=lambda: {"sum": 0.0, "count": 0, "latest": None},
