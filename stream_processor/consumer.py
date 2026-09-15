@@ -130,6 +130,10 @@ def process_event(event):
 
         EVENTS_PROCESSED.inc()
         PROCESSING_SECONDS.observe(time.perf_counter() - started)
+        print(
+            f"Processed | {device_id} | Temp: {temperature}C | "
+            f"Humidity: {humidity}% | Time: {timestamp} | Backend: OK"
+        )
 
         try:
             from datetime import datetime, timezone
