@@ -93,6 +93,9 @@ def heartbeat(consumer: KafkaConsumer) -> None:
 
 def process_event(event):
     if not isinstance(event, dict):
+        message = "Invalid event: expected a JSON object"
+        logger.error(message)
+        print(message)
         EVENTS_FAILED.inc()
         return False
 
@@ -101,18 +104,59 @@ def process_event(event):
     humidity = event.get("humidity")
     timestamp = event.get("timestamp")
 
-    if not device_id or temperature is None or humidity is None or not timestamp:
+    if not device_id:
+        message = "Invalid telemetry event: missing device_id"
+        logger.error(message)
+        print(message)
+        EVENTS_FAILED.inc()
+        return False
+    if temperature is None:
+        message = "Invalid telemetry event: missing temperature"
+        logger.error(message)
+        print(message)
+        EVENTS_FAILED.inc()
+        return False
+    if humidity is None:
+        message = "Invalid telemetry event: missing humidity"
+        logger.error(message)
+        print(message)
+        EVENTS_FAILED.inc()
+        return False
+    if not timestamp:
+        message = "Invalid telemetry event: missing timestamp"
+        logger.error(message)
+        print(message)
         EVENTS_FAILED.inc()
         return False
 
     try:
         temperature = float(temperature)
-        humidity = float(humidity)
     except (TypeError, ValueError):
+        message = "Invalid telemetry event: temperature must be numeric"
+        logger.error(message)
+        print(message)
         EVENTS_FAILED.inc()
         return False
 
-    if not -50 <= temperature <= 100 or not 0 <= humidity <= 100:
+    try:
+        humidity = float(humidity)
+    except (TypeError, ValueError):
+        message = "Invalid telemetry event: humidity must be numeric"
+        logger.error(message)
+        print(message)
+        EVENTS_FAILED.inc()
+        return False
+
+    if temperature < -50 or temperature > 100:
+        message = "Invalid telemetry event: temperature out of range"
+        logger.error(message)
+        print(message)
+        EVENTS_FAILED.inc()
+        return False
+    if humidity < 0 or humidity > 100:
+        message = "Invalid telemetry event: humidity out of range"
+        logger.error(message)
+        print(message)
         EVENTS_FAILED.inc()
         return False
 
@@ -148,6 +192,7 @@ def process_event(event):
     except Exception as exc:
         EVENTS_FAILED.inc()
         logger.error("Backend error for %s: %s", device_id, exc)
+        print(f"Backend error for {device_id}: {exc}")
         return False
 
 
