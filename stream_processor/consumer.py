@@ -168,31 +168,44 @@ def main():
                 heartbeat(consumer)
                 last_heartbeat = now
 
-            for _, messages in records.items():
+            for topic_partition, messages in records.items():
+                partition_succeeded = True
+                last_offset = None
+
                 for message in messages:
                     if message.value is None:
                         continue
-                    if process_event(message.value):
-                        changelog.send(
-                            CHANGELOG_TOPIC,
-                            key=str(message.value.get("device_id", "")).encode(),
-                            value={
-                                "worker_id": WORKER_ID,
-                                "topic": message.topic,
-                                "partition": message.partition,
-                                "offset": message.offset,
-                                "event": message.value,
-                            },
-                        )
-                        changelog.flush()
-                        consumer.commit()
-                    else:
+
+                    if not process_event(message.value):
+                        partition_succeeded = False
                         logger.warning(
                             "Event not committed; Kafka will redeliver "
                             "partition=%s offset=%s",
                             message.partition,
                             message.offset,
                         )
+                        break
+
+                    changelog.send(
+                        CHANGELOG_TOPIC,
+                        key=str(message.value.get("device_id", "")).encode(),
+                        value={
+                            "worker_id": WORKER_ID,
+                            "topic": message.topic,
+                            "partition": message.partition,
+                            "offset": message.offset,
+                            "event": message.value,
+                        },
+                    )
+                    last_offset = message.offset
+
+                if partition_succeeded and last_offset is not None:
+                    changelog.flush()
+                    consumer.commit(
+                        offsets={
+                            topic_partition: last_offset + 1,
+                        }
+                    )
     except KeyboardInterrupt:
         logger.info("Worker stopped by user")
     finally:
