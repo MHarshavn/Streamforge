@@ -8,7 +8,7 @@ import socket
 import time
 import urllib.request
 
-from kafka import KafkaConsumer, KafkaProducer, TopicPartition
+from kafka import KafkaConsumer, KafkaProducer
 from kafka.structs import OffsetAndMetadata
 
 from streamforge.metrics import (
