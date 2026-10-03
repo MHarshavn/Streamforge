@@ -19,6 +19,7 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "kafka-python>=2.0.2",
+    "lz4>=4.3.3",
     "confluent-kafka>=2.6.0",
     "bytewax[kafka]==0.21.1",
     "rocksdict>=0.3.29",
