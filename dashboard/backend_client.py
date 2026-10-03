@@ -1,7 +1,9 @@
+import os
+
 import requests
 
 
-BACKEND_URL = "http://127.0.0.1:8001"
+BACKEND_URL = os.getenv("STREAMFORGE_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
 def check_backend_health():
@@ -64,11 +66,6 @@ def get_processed_telemetry(limit=500):
                 "latest_temperature",
                 truck.get("temperature")
             )
-            humidity = truck.get(
-                "latest_humidity",
-                truck.get("humidity")
-            )
-
             rolling_avg = truck.get(
                 "rolling_avg_temperature",
                 truck.get("rolling_average_temperature")
@@ -87,7 +84,6 @@ def get_processed_telemetry(limit=500):
                 "truck_id": truck_id,
                 "timestamp": timestamp,
                 "temperature": temperature,
-		"humidity": humidity,
                 "rolling_avg_temperature": rolling_avg
             })
 

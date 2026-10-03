@@ -7,20 +7,28 @@ import os
 import socket
 import time
 import urllib.request
+from datetime import datetime, timezone
 
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.structs import OffsetAndMetadata
 
 from streamforge.metrics import (
     EVENTS_FAILED,
+    EVENTS_FILTERED,
     EVENTS_PROCESSED,
     PROCESSING_LAG_SECONDS,
     PROCESSING_SECONDS,
     registry,
 )
 
-KAFKA_BROKER = os.getenv("STREAMFORGE_KAFKA_BROKER", "localhost:9092")
-KAFKA_TOPIC = os.getenv("STREAMFORGE_KAFKA_TOPIC", "telemetry-events")
+KAFKA_BROKER = os.getenv(
+    "STREAMFORGE_KAFKA_BROKER",
+    os.getenv("STREAMFORGE_KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+)
+KAFKA_TOPIC = os.getenv(
+    "STREAMFORGE_KAFKA_TOPIC",
+    os.getenv("STREAMFORGE_KAFKA_TELEMETRY_TOPIC", "telemetry-events"),
+)
 CHANGELOG_TOPIC = os.getenv(
     "STREAMFORGE_KAFKA_CHANGELOG_TOPIC", "streamforge-state-changelog"
 )
@@ -30,7 +38,10 @@ BACKEND_URL = os.getenv(
 HEARTBEAT_URL = os.getenv(
     "STREAMFORGE_HEARTBEAT_URL", "http://127.0.0.1:8000/workers/heartbeat"
 )
-CONSUMER_GROUP = os.getenv("STREAMFORGE_CONSUMER_GROUP", "streamforge-workers")
+CONSUMER_GROUP = os.getenv(
+    "STREAMFORGE_CONSUMER_GROUP",
+    os.getenv("STREAMFORGE_KAFKA_CONSUMER_GROUP", "streamforge-workers"),
+)
 WORKER_ID = os.getenv("STREAMFORGE_WORKER_ID", socket.gethostname())
 
 logger = logging.getLogger("streamforge.consumer")
@@ -61,6 +72,9 @@ def create_changelog_producer():
     return KafkaProducer(
         bootstrap_servers=KAFKA_BROKER,
         value_serializer=lambda value: json.dumps(value).encode("utf-8"),
+        acks="all",
+        retries=10,
+        max_in_flight_requests_per_connection=1,
     )
 
 
@@ -99,25 +113,19 @@ def process_event(event):
         EVENTS_FAILED.inc()
         return False
 
-    device_id = event.get("device_id")
+    device_id = event.get("truck_id") or event.get("device_id")
     temperature = event.get("temperature")
     humidity = event.get("humidity")
     timestamp = event.get("timestamp")
 
     if not device_id:
-        message = "Invalid telemetry event: missing device_id"
+        message = "Invalid telemetry event: missing device_id (truck_id is also accepted)"
         logger.error(message)
         print(message)
         EVENTS_FAILED.inc()
         return False
     if temperature is None:
         message = "Invalid telemetry event: missing temperature"
-        logger.error(message)
-        print(message)
-        EVENTS_FAILED.inc()
-        return False
-    if humidity is None:
-        message = "Invalid telemetry event: missing humidity"
         logger.error(message)
         print(message)
         EVENTS_FAILED.inc()
@@ -130,6 +138,26 @@ def process_event(event):
         return False
 
     try:
+        parsed_event_time = datetime.fromisoformat(
+            timestamp.replace("Z", "+00:00")
+            if isinstance(timestamp, str)
+            else timestamp
+        )
+    except (TypeError, ValueError):
+        message = "Invalid telemetry event: timestamp must be ISO-8601"
+        logger.error(message)
+        print(message)
+        EVENTS_FAILED.inc()
+        return False
+    if parsed_event_time.tzinfo is None or parsed_event_time.utcoffset() is None:
+        message = "Invalid telemetry event: timestamp must include a timezone"
+        logger.error(message)
+        print(message)
+        EVENTS_FAILED.inc()
+        return False
+    timestamp = parsed_event_time.astimezone(timezone.utc).isoformat()
+
+    try:
         temperature = float(temperature)
     except (TypeError, ValueError):
         message = "Invalid telemetry event: temperature must be numeric"
@@ -138,14 +166,15 @@ def process_event(event):
         EVENTS_FAILED.inc()
         return False
 
-    try:
-        humidity = float(humidity)
-    except (TypeError, ValueError):
-        message = "Invalid telemetry event: humidity must be numeric"
-        logger.error(message)
-        print(message)
-        EVENTS_FAILED.inc()
-        return False
+    if humidity is not None:
+        try:
+            humidity = float(humidity)
+        except (TypeError, ValueError):
+            message = "Invalid telemetry event: humidity must be numeric"
+            logger.error(message)
+            print(message)
+            EVENTS_FAILED.inc()
+            return False
 
     if temperature < -50 or temperature > 100:
         message = "Invalid telemetry event: temperature out of range"
@@ -153,17 +182,21 @@ def process_event(event):
         print(message)
         EVENTS_FAILED.inc()
         return False
-    if humidity < 0 or humidity > 100:
+    if humidity is not None and (humidity < 0 or humidity > 100):
         message = "Invalid telemetry event: humidity out of range"
         logger.error(message)
         print(message)
         EVENTS_FAILED.inc()
         return False
 
+    if temperature <= 0:
+        EVENTS_FILTERED.inc()
+        print(f"Filtered | {device_id} | Temperature must be above 0C")
+        return True
+
     backend_event = {
         "truck_id": device_id,
         "temperature": temperature,
-        "humidity": humidity,
         "timestamp": timestamp,
     }
 
@@ -176,17 +209,15 @@ def process_event(event):
         PROCESSING_SECONDS.observe(time.perf_counter() - started)
         print(
             f"Processed | {device_id} | Temp: {temperature}C | "
-            f"Humidity: {humidity}% | Time: {timestamp} | Backend: OK"
+            f"Time: {timestamp} | Backend: OK"
         )
 
-        try:
-            from datetime import datetime, timezone
-            event_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-            PROCESSING_LAG_SECONDS.set(
-                max(0.0, (datetime.now(timezone.utc) - event_time).total_seconds())
+        PROCESSING_LAG_SECONDS.set(
+            max(
+                0.0,
+                (datetime.now(timezone.utc) - parsed_event_time.astimezone(timezone.utc)).total_seconds(),
             )
-        except (TypeError, ValueError):
-            pass
+        )
 
         return True
     except Exception as exc:
@@ -236,17 +267,19 @@ def main():
                         )
                         break
 
-                    changelog.send(
-                        CHANGELOG_TOPIC,
-                        key=str(message.value.get("device_id", "")).encode(),
-                        value={
-                            "worker_id": WORKER_ID,
-                            "topic": message.topic,
-                            "partition": message.partition,
-                            "offset": message.offset,
-                            "event": message.value,
-                        },
-                    )
+                    if float(message.value.get("temperature", 0)) > 0:
+                        truck_id = message.value.get("truck_id") or message.value.get("device_id", "")
+                        changelog.send(
+                            CHANGELOG_TOPIC,
+                            key=str(truck_id).encode(),
+                            value={
+                                "worker_id": WORKER_ID,
+                                "topic": message.topic,
+                                "partition": message.partition,
+                                "offset": message.offset,
+                                "event": message.value,
+                            },
+                        )
                     last_offset = message.offset
 
                 if partition_succeeded and last_offset is not None:

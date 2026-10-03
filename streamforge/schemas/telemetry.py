@@ -32,12 +32,12 @@ class TelemetryEvent(BaseModel):
         description="Temperature reading in Celsius",
         examples=[22.5],
     )
-    humidity: float = Field(
-    ...,
-    ge=0.0,
-    le=100.0,
-    description="Humidity reading as a percentage",
-    examples=[65.0],
+    humidity: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Optional legacy humidity reading",
+        examples=[65.0],
     )
     timestamp: datetime = Field(
         ...,
@@ -102,11 +102,11 @@ class TruckTelemetryState(BaseModel):
     latest_temperature: float = Field(
         ..., description="Most recent temperature reading (°C)"
     )
-    latest_humidity: float = Field(
-    ...,
-    ge=0.0,
-    le=100.0,
-    description="Most recent humidity reading (%)"
+    latest_humidity: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Most recent optional legacy humidity reading (%)",
     )
     rolling_avg_temperature: float | None = Field(
         None,

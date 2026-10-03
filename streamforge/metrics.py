@@ -14,6 +14,14 @@ EVENTS_FAILED = Counter(
     "streamforge_events_failed_total",
     "Telemetry events rejected or failed",
 )
+EVENTS_FILTERED = Counter(
+    "streamforge_events_filtered_total",
+    "Valid telemetry events dropped by the positive-temperature filter",
+)
+EVENTS_PER_SECOND = Gauge(
+    "streamforge_events_per_second",
+    "Average successfully processed events per second since the previous scrape",
+)
 PROCESSING_SECONDS = Histogram(
     "streamforge_processing_seconds",
     "End-to-end event processing time",
@@ -72,7 +80,22 @@ class WorkerRegistry:
 
 registry = WorkerRegistry()
 
+_rate_lock = threading.Lock()
+_last_rate_sample = time.perf_counter()
+_last_processed_total = 0.0
+
 
 def metrics_payload() -> bytes:
+    global _last_rate_sample, _last_processed_total
+    now = time.perf_counter()
+    processed_total = EVENTS_PROCESSED._value.get()
+    with _rate_lock:
+        elapsed = now - _last_rate_sample
+        if elapsed > 0:
+            EVENTS_PER_SECOND.set(
+                max(0.0, processed_total - _last_processed_total) / elapsed
+            )
+            _last_processed_total = processed_total
+            _last_rate_sample = now
     registry.snapshot()
     return generate_latest()

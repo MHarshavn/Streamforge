@@ -65,7 +65,7 @@ class _Reading(NamedTuple):
     """A single telemetry reading stored alongside its event timestamp."""
 
     temperature: float
-    humidity: float
+    humidity: float | None
     event_time: datetime
 
 

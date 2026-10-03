@@ -36,6 +36,8 @@ export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [workers, setWorkers] = useState(0);
+  const [eventsPerSecond, setEventsPerSecond] = useState(0);
+  const [processingLag, setProcessingLag] = useState(0);
   const [error, setError] = useState("");
 
   async function refresh() {
@@ -46,6 +48,8 @@ export default function App() {
       setNodes(layout(data.nodes));
       setEdges(data.edges);
       setWorkers(data.active_workers);
+      setEventsPerSecond(data.events_per_second ?? 0);
+      setProcessingLag(data.processing_lag_seconds ?? 0);
       setError("");
     } catch (err) {
       setError(err.message);
@@ -72,6 +76,8 @@ export default function App() {
         </div>
         <div className="status">
           <strong>{workers}</strong> active workers
+          <span>{eventsPerSecond.toFixed(1)} events/sec</span>
+          <span>{processingLag.toFixed(1)} sec lag</span>
         </div>
       </header>
       {error && <div className="error">{error}</div>}
