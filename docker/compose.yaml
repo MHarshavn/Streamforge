@@ -1,4 +1,12 @@
 services:
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: streamforge-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
   kafka:
     image: apache/kafka:4.3.1
     container_name: streamforge-kafka

@@ -23,6 +23,21 @@ async def test_topology_endpoint(client: AsyncClient):
     data = response.json()
     assert "nodes" in data
     assert "edges" in data
+    assert "events_per_second" in data
+    assert "processing_lag_seconds" in data
+
+
+@pytest.mark.asyncio
+async def test_topology_ui_cors_preflight(client: AsyncClient):
+    response = await client.options(
+        "/topology",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
 @pytest.mark.asyncio

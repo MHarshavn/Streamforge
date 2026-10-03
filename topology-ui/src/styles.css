@@ -21,7 +21,7 @@ header, footer {
 }
 h1 { margin: 0 0 4px; font-size: 20px; }
 p { margin: 0; color: #94a3b8; }
-.status { padding: 8px 12px; border: 1px solid #334155; border-radius: 8px; }
+.status { padding: 8px 12px; border: 1px solid #334155; border-radius: 8px; display: flex; gap: 12px; align-items: center; }
 .status strong { font-size: 20px; }
 .graph { flex: 1; min-height: 0; }
 .error {

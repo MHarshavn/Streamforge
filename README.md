@@ -35,15 +35,17 @@ RocksDB State
        v
 React Flow Topology UI
 
-Kafka state-changelog snapshots and manual commits support recovery and replay.
+Kafka state-changelog events and manual commits support recovery and replay.
 ```
 
 ## Distributed Processing Features
 
 - **20 Kafka partitions** for parallel consumption.
+- **Canonical telemetry schema**: `truck_id`, `temperature`, and timezone-aware `timestamp`.
+- **Positive-temperature filter** shared by the Kafka worker and Bytewax flow.
 - **Shared consumer group** with configurable worker IDs.
 - **Manual Kafka offset commits** only after successful processing.
-- **Kafka state-changelog snapshots** for worker/state recovery.
+- **Kafka state-changelog events** for worker/state recovery.
 - **RocksDB persistent state** with idempotent event application.
 - **5-minute event-time rolling temperature windows**.
 - **Bytewax** dataflow for event-time sliding-window processing.
@@ -62,13 +64,14 @@ Kafka state-changelog snapshots and manual commits support recovery and replay.
 |---|---|
 | Python 3.11+ | Application and stream processing |
 | Apache Kafka 4.3.1 | Event streaming and partitioning |
-| kafka-python | Kafka producer/consumer |
+| Confluent Kafka | Batched, idempotent telemetry producer |
+| kafka-python | Consumer groups and changelog replay |
 | Bytewax 0.21.1 | Event-time stream processing |
 | RocksDB / rocksdict | Durable local state |
 | FastAPI + Uvicorn | Backend and APIs |
 | Prometheus client | Metrics |
 | React + React Flow | Topology visualization |
-| Docker Compose | Local Kafka environment |
+| Docker Compose | Local Kafka and Prometheus services |
 | Pytest | Automated testing |
 
 ## Repository Structure
@@ -133,6 +136,7 @@ The Compose setup creates the following 20-partition topics:
 ```powershell
 $env:STREAMFORGE_STATE_BACKEND="rocksdb"
 $env:STREAMFORGE_ROCKSDB_PATH="./data/rocksdb"
+$env:STREAMFORGE_RECOVER_STATE_FROM_CHANGELOG="true"
 python -m uvicorn streamforge.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -208,7 +212,7 @@ For each truck, the state store keeps recent readings, removes readings outside 
 
 Event application is idempotent: a deterministic event ID prevents the same telemetry event from being applied twice.
 
-The worker also publishes a state-changelog record and commits the Kafka offset only after successful backend processing and changelog flush. This provides a clear processing boundary for recovery.
+The worker publishes accepted positive-temperature events to the keyed changelog and commits the input Kafka offset only after backend processing and changelog flush. At API startup, the service replays retained changelog events into RocksDB; deterministic event IDs make replay idempotent. If Kafka is unavailable, the API logs the recovery failure and continues with its local RocksDB contents. Set `STREAMFORGE_RECOVER_STATE_FROM_CHANGELOG=false` to disable replay.
 
 See **`docs/distributed-review.md`** for the full failure/recovery procedure.
 
@@ -226,6 +230,8 @@ Important metrics include:
 ```text
 streamforge_events_processed_total
 streamforge_events_failed_total
+streamforge_events_filtered_total
+streamforge_events_per_second
 streamforge_processing_seconds
 streamforge_processing_lag_seconds
 streamforge_active_workers
@@ -233,6 +239,7 @@ streamforge_partitions_assigned
 ```
 
 Prometheus configuration is in `monitoring/prometheus.yml`.
+The Compose file exposes Prometheus at `http://127.0.0.1:9090`.
 
 ## Testing
 
@@ -283,7 +290,6 @@ For a short project review, demonstrate the system in this order:
 - `docs/distributed-review.md` — distributed review and recovery procedure.
 - `docs/stream_processor.md` — stream processor details.
 - `docs/dashboard.md` — dashboard details.
-- `backend/README.md` — backend documentation.
 
 ## Project Status
 

@@ -13,13 +13,20 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import bytewax.operators as op
+from bytewax.operators import windowing
 from bytewax.connectors.kafka import KafkaSinkMessage
 from bytewax.connectors.kafka import operators as kop
 from bytewax.dataflow import Dataflow
 from bytewax.operators.windowing import EventClock, SlidingWindower
 
-BROKERS = os.getenv("STREAMFORGE_KAFKA_BROKER", "localhost:9092").split(",")
-INPUT_TOPIC = os.getenv("STREAMFORGE_KAFKA_TOPIC", "telemetry-events")
+BROKERS = os.getenv(
+    "STREAMFORGE_KAFKA_BROKER",
+    os.getenv("STREAMFORGE_KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+).split(",")
+INPUT_TOPIC = os.getenv(
+    "STREAMFORGE_KAFKA_TOPIC",
+    os.getenv("STREAMFORGE_KAFKA_TELEMETRY_TOPIC", "telemetry-events"),
+)
 OUTPUT_TOPIC = os.getenv("STREAMFORGE_KAFKA_WINDOW_TOPIC", "streamforge-windowed")
 
 
@@ -29,6 +36,13 @@ def decode(message):
 
 def event_time(event):
     return datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00"))
+
+
+def has_positive_temperature(event):
+    try:
+        return float(event["temperature"]) > 0
+    except (KeyError, TypeError, ValueError):
+        return False
 
 
 def add(acc, event):
@@ -71,9 +85,18 @@ incoming = kop.input(
     batch_size=1000,
 )
 events = op.map("decode-json", incoming.oks, decode)
-keyed = op.key_on("truck-key", events, lambda event: event["device_id"])
+positive_temperature = op.filter(
+    "filter-positive-temperature",
+    events,
+    has_positive_temperature,
+)
+keyed = op.key_on(
+    "truck-key",
+    positive_temperature,
+    lambda event: event.get("truck_id") or event["device_id"],
+)
 
-windowed = op.fold_window(
+windowed = windowing.fold_window(
     "five-minute-event-window",
     keyed,
     EventClock(event_time, wait_for_system_duration=timedelta(seconds=10)),

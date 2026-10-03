@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
 
@@ -30,18 +30,19 @@ class RocksDBStateStore(BaseStateStore):
     async def store_telemetry(self, event: TelemetryEvent) -> None:
         async with self._lock:
             readings = list(self._db.get(event.truck_id, []))
+            event_time = event.timestamp.astimezone(timezone.utc)
             event_id = hashlib.sha256(
-                f"{event.truck_id}|{event.timestamp.isoformat()}|{event.temperature}|{event.humidity}".encode()
+                f"{event.truck_id}|{event_time.isoformat()}|{event.temperature}|{event.humidity}".encode()
             ).hexdigest()
             if any(item.get("event_id") == event_id for item in readings):
                 return
             readings.append({
                 "temperature": event.temperature,
                 "humidity": event.humidity,
-                "event_time": event.timestamp.isoformat(),
+                "event_time": event_time.isoformat(),
                 "event_id": event_id,
             })
-            readings.sort(key=lambda item: item["event_time"])
+            readings.sort(key=lambda item: datetime.fromisoformat(item["event_time"]))
             latest = datetime.fromisoformat(readings[-1]["event_time"])
             cutoff = latest - timedelta(seconds=self._window_size)
             readings = [
@@ -90,7 +91,9 @@ class RocksDBStateStore(BaseStateStore):
         return TruckTelemetryState(
             truck_id=truck_id,
             latest_temperature=float(latest["temperature"]),
-            latest_humidity=float(latest["humidity"]),
+            latest_humidity=(
+                float(latest["humidity"]) if latest.get("humidity") is not None else None
+            ),
             rolling_avg_temperature=round(average, 4),
             window_start=window_start,
             window_end=window_end,

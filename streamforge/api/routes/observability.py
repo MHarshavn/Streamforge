@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from streamforge.metrics import metrics_payload, registry
+from streamforge.metrics import (
+    EVENTS_PER_SECOND,
+    PROCESSING_LAG_SECONDS,
+    metrics_payload,
+    registry,
+)
 
 router = APIRouter(tags=["Observability"])
 
@@ -13,7 +18,7 @@ class WorkerHeartbeat(BaseModel):
     worker_id: str
     host: str
     group_id: str
-    partitions: list[int] = []
+    partitions: list[int] = Field(default_factory=list)
 
 
 @router.post("/workers/heartbeat", status_code=204)
@@ -53,6 +58,7 @@ async def workers() -> dict:
 
 @router.get("/topology")
 async def topology() -> dict:
+    metrics_payload()
     snapshot = registry.snapshot()
     worker_nodes = [
         {
@@ -83,4 +89,10 @@ async def topology() -> dict:
             edges.append({"id": f"p{p}-{w.worker_id}", "source": f"partition-{p}", "target": w.worker_id})
         edges.append({"id": f"{w.worker_id}-state", "source": w.worker_id, "target": "state"})
     edges.append({"id": "state-backend", "source": "state", "target": "backend"})
-    return {"nodes": nodes, "edges": edges, "active_workers": len(snapshot)}
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "active_workers": len(snapshot),
+        "events_per_second": EVENTS_PER_SECOND._value.get(),
+        "processing_lag_seconds": PROCESSING_LAG_SECONDS._value.get(),
+    }

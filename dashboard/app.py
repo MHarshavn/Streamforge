@@ -99,7 +99,7 @@ def live_dashboard():
         st.subheader("Telemetry Overview")
 
         avg_temperature = df["temperature"].mean()
-        avg_humidity = df["humidity"].mean()
+        avg_rolling_temperature = df["rolling_avg_temperature"].mean()
         truck_count = df["truck_id"].nunique()
         reading_count = len(df)
 
@@ -113,8 +113,8 @@ def live_dashboard():
 
         with col2:
             st.metric(
-                "Average Humidity",
-                f"{avg_humidity:.2f} %"
+                "5-Minute Rolling Average",
+                f"{avg_rolling_temperature:.2f} C"
             )
 
         with col3:
@@ -202,11 +202,6 @@ def live_dashboard():
         st.write("Temperature")
         st.line_chart(
             chart_data.set_index("timestamp")["temperature"]
-        )
-
-        st.write("Humidity")
-        st.line_chart(
-            chart_data.set_index("timestamp")["humidity"]
         )
 
         # -----------------------------

@@ -9,12 +9,11 @@ def test_producer_kafka_consumer_flow(capsys):
     producer = None
     consumer = None
 
-    device_id = f"integration-{uuid.uuid4()}"
+    truck_id = f"integration-{uuid.uuid4()}"
 
     event = {
-        "device_id": device_id,
+        "truck_id": truck_id,
         "temperature": 25.5,
-        "humidity": 60.0,
         "timestamp": "2026-08-25T00:00:00+00:00",
     }
 
@@ -30,7 +29,7 @@ def test_producer_kafka_consumer_flow(capsys):
 
         future = producer.send(
             "telemetry-events",
-            key=device_id,
+            key=truck_id,
             value=event,
         )
 
@@ -47,22 +46,21 @@ def test_producer_kafka_consumer_flow(capsys):
                 for message in messages:
                     if (
                         isinstance(message.value, dict)
-                        and message.value.get("device_id") == device_id
+                        and message.value.get("truck_id") == truck_id
                     ):
                         received_event = message.value
                         break
 
         assert received_event is not None
-        assert received_event["device_id"] == device_id
+        assert received_event["truck_id"] == truck_id
         assert received_event["temperature"] == 25.5
-        assert received_event["humidity"] == 60.0
 
         process_event(received_event)
 
         captured = capsys.readouterr()
 
         assert "Processed" in captured.out
-        assert device_id in captured.out
+        assert truck_id in captured.out
 
     finally:
         if producer is not None:

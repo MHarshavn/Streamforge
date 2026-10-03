@@ -12,10 +12,16 @@ The broker is configured with 20 partitions for parallel workers.
 
     pip install -e ".[dev]"
     $env:STREAMFORGE_STATE_BACKEND="rocksdb"
+    $env:STREAMFORGE_RECOVER_STATE_FROM_CHANGELOG="true"
     $env:STREAMFORGE_ROCKSDB_PATH="./data/rocksdb"
     python -m uvicorn streamforge.main:app --port 8000
 
 Verify /health, /metrics, /workers, and /topology.
+
+At API startup, retained positive-temperature events are replayed from
+`streamforge-state-changelog` into RocksDB. If Kafka is unavailable, the API
+continues with the local RocksDB state. Use a clean temporary RocksDB path when
+demonstrating a full rebuild from the changelog.
 
 ## 3. Distributed workers
 
@@ -52,6 +58,8 @@ Use monitoring/prometheus.yml and inspect:
 
 - streamforge_events_processed_total
 - streamforge_events_failed_total
+- streamforge_events_filtered_total
+- streamforge_events_per_second
 - streamforge_processing_seconds
 - streamforge_processing_lag_seconds
 - streamforge_active_workers

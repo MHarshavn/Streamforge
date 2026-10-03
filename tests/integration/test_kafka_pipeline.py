@@ -45,15 +45,14 @@ def test_producer_to_consumer_message_flow(kafka_producer):
         assert consumer.assignment(), "Kafka consumer did not receive a partition assignment"
 
         event = {
-            "device_id": f"integration_test_{uuid.uuid4()}",
+            "truck_id": f"integration_test_{uuid.uuid4()}",
             "temperature": 25.5,
-            "humidity": 60.0,
             "timestamp": "2026-08-25T00:00:00+00:00",
         }
 
         kafka_producer.send(
             TEST_TOPIC,
-            key=event["device_id"],
+            key=event["truck_id"],
             value=event,
         )
         kafka_producer.flush()
@@ -66,7 +65,7 @@ def test_producer_to_consumer_message_flow(kafka_producer):
 
             for messages in records.values():
                 for message in messages:
-                    if message.value.get("device_id") == event["device_id"]:
+                    if message.value.get("truck_id") == event["truck_id"]:
                         received_event = message.value
                         break
 
@@ -77,9 +76,8 @@ def test_producer_to_consumer_message_flow(kafka_producer):
                 break
 
         assert received_event is not None
-        assert received_event["device_id"] == event["device_id"]
+        assert received_event["truck_id"] == event["truck_id"]
         assert received_event["temperature"] == event["temperature"]
-        assert received_event["humidity"] == event["humidity"]
         assert received_event["timestamp"] == event["timestamp"]
 
     finally:
@@ -90,9 +88,8 @@ def test_invalid_telemetry_is_detected():
     from stream_processor.consumer import process_event
 
     invalid_event = {
-        "device_id": "invalid_device",
+        "truck_id": "invalid_truck",
         "temperature": 200,
-        "humidity": 50,
         "timestamp": "2026-08-25T00:00:00+00:00",
     }
 

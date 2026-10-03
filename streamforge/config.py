@@ -22,8 +22,9 @@ class Settings(BaseSettings):
     version: str = "1.0.0"
     debug: bool = False
 
-    state_backend: StateBackend = StateBackend.IN_MEMORY
+    state_backend: StateBackend = StateBackend.ROCKSDB
     window_size_seconds: int = 300
+    recover_state_from_changelog: bool = True
 
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_telemetry_topic: str = "telemetry-events"
