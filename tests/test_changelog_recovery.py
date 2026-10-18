@@ -74,8 +74,16 @@ async def test_changelog_replay_rebuilds_only_accepted_positive_readings(
         ),
     ]
     consumer = FakeConsumer(records)
+
+    consumer_options = {}
+
+    def make_consumer(*args, **kwargs):
+        consumer_options["topics"] = args
+        consumer_options["options"] = kwargs
+        return consumer
+
     monkeypatch.setattr(
-        changelog_recovery, "KafkaConsumer", lambda *args, **kwargs: consumer
+        changelog_recovery, "KafkaConsumer", make_consumer
     )
     store = RocksDBStateStore(str(tmp_path / "state"))
 
@@ -85,6 +93,8 @@ async def test_changelog_replay_rebuilds_only_accepted_positive_readings(
     state = await store.get_truck_state("TRUCK-1")
 
     assert replayed == 1
+    assert consumer_options["topics"] == ()
+    assert consumer_options["options"]["group_id"] is None
     assert consumer.closed
     assert state is not None
     assert state.rolling_avg_temperature == 22.0

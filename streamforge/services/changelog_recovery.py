@@ -58,7 +58,6 @@ async def recover_from_changelog(
     """
     try:
         consumer = KafkaConsumer(
-            topic,
             bootstrap_servers=[item.strip() for item in bootstrap_servers.split(",")],
             group_id=None,
             enable_auto_commit=False,

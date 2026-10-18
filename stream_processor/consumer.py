@@ -101,6 +101,11 @@ def heartbeat(consumer: KafkaConsumer) -> None:
             "host": socket.gethostname(),
             "group_id": CONSUMER_GROUP,
             "partitions": partitions,
+            "failed_events": int(EVENTS_FAILED._value.get()),
+            "filtered_events": int(EVENTS_FILTERED._value.get()),
+            "processing_lag_seconds": max(
+                0.0, PROCESSING_LAG_SECONDS._value.get()
+            ),
         },
     )
 

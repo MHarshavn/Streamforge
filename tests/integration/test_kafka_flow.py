@@ -1,11 +1,13 @@
+import json
 import time
 import uuid
+from urllib.request import urlopen
 
 from producer.telemetry_producer import create_producer
 from stream_processor.consumer import create_consumer, process_event
 
 
-def test_producer_kafka_consumer_flow(capsys):
+def test_producer_kafka_consumer_flow(capsys, fastapi_backend):
     producer = None
     consumer = None
 
@@ -61,6 +63,12 @@ def test_producer_kafka_consumer_flow(capsys):
 
         assert "Processed" in captured.out
         assert truck_id in captured.out
+
+        with urlopen(f"{fastapi_backend}/telemetry/{truck_id}", timeout=5) as response:
+            stored_state = json.loads(response.read())
+
+        assert stored_state["truck_id"] == truck_id
+        assert stored_state["latest_temperature"] == 25.5
 
     finally:
         if producer is not None:

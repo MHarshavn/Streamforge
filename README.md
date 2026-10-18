@@ -243,6 +243,14 @@ The Compose file exposes Prometheus at `http://127.0.0.1:9090`.
 
 ## Testing
 
+The Kafka integration tests require the local broker and initialized topics. Start them first:
+
+```powershell
+docker compose -f docker/compose.yaml up -d kafka kafka-init
+```
+
+The `test_kafka_flow` integration test starts its own FastAPI server on an available local port and uses in-memory state. It still sends telemetry through Kafka and the worker's real HTTP ingestion path.
+
 Run:
 
 ```powershell
@@ -293,7 +301,16 @@ For a short project review, demonstrate the system in this order:
 
 ## Project Status
 
-The distributed processing path is implemented on `feature/distributed-system-completion`. The final review should verify the GitHub Actions test result and the measured local benchmark before making performance or production-readiness claims.
+Local validation on 2026-10-17:
+
+- Pytest: **83 passed**, **0 failed**, with **5 warnings**.
+- Producer benchmark: **100,000 delivered** in **1.182 seconds**, or **84,577 producer events/sec**. This measures producer delivery to Kafka, not end-to-end worker throughput; the 100,000 events/sec target was not reached.
+- An isolated 20-partition Kafka test assigned partitions across three workers (7/7/6). Stopping a worker caused reassignment and its heartbeat expired; restarting it restored three visible workers.
+- Three telemetry events reached FastAPI/RocksDB and the changelog. A fresh RocksDB path recovered all three readings from the changelog.
+- Bytewax consumed two current-time events and emitted windows with average temperature **31.0** and reading count **2**.
+- The React Flow dashboard production build completed; Vite reported an ignored `use client` directive warning from React Flow.
+
+These are local single-broker checks. They do not establish multi-broker fault tolerance or production readiness. The benchmark and full runbook are in `docs/distributed-review.md`.
 
 ## License
 

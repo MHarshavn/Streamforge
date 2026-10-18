@@ -8,7 +8,14 @@ publishing) live here so the route handlers stay thin.
 from __future__ import annotations
 
 import logging
+import time
+from datetime import datetime, timezone
 
+from streamforge.metrics import (
+    EVENTS_PROCESSED,
+    PROCESSING_LAG_SECONDS,
+    PROCESSING_SECONDS,
+)
 from streamforge.exceptions import StateStoreUnavailableError, TruckNotFoundError
 from streamforge.schemas.telemetry import (
     TelemetryEvent,
@@ -41,8 +48,17 @@ class TelemetryService:
         In the future this method will also publish to Kafka; for now it
         writes directly to the state store.
         """
+        started = time.perf_counter()
         await self._ensure_store_healthy()
         await self._store.store_telemetry(event)
+        EVENTS_PROCESSED.inc()
+        PROCESSING_SECONDS.observe(time.perf_counter() - started)
+        PROCESSING_LAG_SECONDS.set(
+            max(
+                0.0,
+                (datetime.now(timezone.utc) - event.timestamp.astimezone(timezone.utc)).total_seconds(),
+            )
+        )
         logger.info(
             "Ingested telemetry: truck=%s temp=%.2f",
             event.truck_id,
@@ -59,7 +75,14 @@ class TelemetryService:
         """
         await self._ensure_store_healthy()
         for event in events:
+            started = time.perf_counter()
             await self._store.store_telemetry(event)
+            PROCESSING_SECONDS.observe(time.perf_counter() - started)
+        EVENTS_PROCESSED.inc(len(events))
+        latest_event_time = max(event.timestamp for event in events).astimezone(timezone.utc)
+        PROCESSING_LAG_SECONDS.set(
+            max(0.0, (datetime.now(timezone.utc) - latest_event_time).total_seconds())
+        )
         count = len(events)
         logger.info("Ingested batch of %d telemetry event(s)", count)
         return TelemetryIngestResponse(

@@ -24,7 +24,7 @@ EVENTS_PER_SECOND = Gauge(
 )
 PROCESSING_SECONDS = Histogram(
     "streamforge_processing_seconds",
-    "End-to-end event processing time",
+    "FastAPI telemetry ingestion and state-store processing time",
 )
 PROCESSING_LAG_SECONDS = Gauge(
     "streamforge_processing_lag_seconds",
@@ -53,6 +53,7 @@ class WorkerRegistry:
     def __init__(self, ttl_seconds: float = 30.0) -> None:
         self._ttl = ttl_seconds
         self._workers: dict[str, WorkerInfo] = {}
+        self._worker_metric_totals: dict[str, tuple[int, int]] = {}
         self._lock = threading.Lock()
 
     def heartbeat(self, worker_id: str, host: str, group_id: str, partitions: list[int]) -> None:
@@ -63,6 +64,30 @@ class WorkerRegistry:
                 group_id=group_id,
                 partitions=sorted(set(partitions)),
             )
+
+    def report_worker_metrics(
+        self,
+        worker_id: str,
+        *,
+        failed_events: int,
+        filtered_events: int,
+        processing_lag_seconds: float,
+    ) -> None:
+        """Aggregate monotonic worker counters and publish the latest lag."""
+        totals = (failed_events, filtered_events)
+        with self._lock:
+            previous = self._worker_metric_totals.get(worker_id, (0, 0))
+            deltas = tuple(
+                current - old if current >= old else current
+                for current, old in zip(totals, previous)
+            )
+            self._worker_metric_totals[worker_id] = totals
+
+        if deltas[0]:
+            EVENTS_FAILED.inc(deltas[0])
+        if deltas[1]:
+            EVENTS_FILTERED.inc(deltas[1])
+        PROCESSING_LAG_SECONDS.set(max(0.0, processing_lag_seconds))
 
     def snapshot(self) -> list[WorkerInfo]:
         now = time.time()

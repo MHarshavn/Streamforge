@@ -79,3 +79,15 @@ Record the measured producer rate and Prometheus counters. Only claim 100,000 ev
 4. Confirm Kafka reassigns its partition.
 5. Restart the worker/dataflow.
 6. Query the truck again and confirm the rolling state remains consistent.
+
+## 9. Verified local results (2026-10-17)
+
+- `python -m pytest -q`: 83 passed, 0 failed, 5 warnings.
+- The 100,000-event producer benchmark delivered all events in 1.182 seconds (84,577 producer events/sec). This is producer-to-Kafka throughput, not end-to-end processing throughput; the 100,000 events/sec target was not reached.
+- A dedicated 20-partition test topic was assigned across three workers (7/7/6). After one worker was stopped, Kafka reassigned its partitions and the API expired its heartbeat. Restarting the worker restored three registered workers.
+- Three events were processed into RocksDB and written to the changelog. Starting the API with a fresh temporary RocksDB directory restored all three events from that changelog.
+- The API metrics endpoint reported 3 processed events, 1 filtered event, 3 latency observations, 3 active workers, and 20 assigned partitions. The Prometheus target reported `up` while FastAPI was running.
+- Bytewax consumed two current-time events and emitted sliding-window results with average temperature 31.0 and reading count 2.
+- The React Flow UI production build completed; Vite reported an ignored `use client` directive warning from React Flow.
+
+The validation used one local Kafka broker with replication factor 1. It verifies the local recovery path, not broker loss or multi-node availability.

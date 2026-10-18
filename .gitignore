@@ -10,3 +10,7 @@ __pycache__/
 .DS_Store
 # Python packaging
 *.egg-info/
+
+# Generated frontend dependencies and build output
+topology-ui/node_modules/
+topology-ui/dist/

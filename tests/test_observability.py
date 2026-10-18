@@ -1,5 +1,8 @@
 import pytest
 from httpx import AsyncClient
+from uuid import uuid4
+
+from streamforge.metrics import EVENTS_FAILED, EVENTS_FILTERED, PROCESSING_LAG_SECONDS
 
 
 @pytest.mark.asyncio
@@ -42,16 +45,39 @@ async def test_topology_ui_cors_preflight(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_worker_heartbeat(client: AsyncClient):
+    worker_id = f"test-worker-{uuid4()}"
+    failed_before = EVENTS_FAILED._value.get()
+    filtered_before = EVENTS_FILTERED._value.get()
     response = await client.post(
         "/workers/heartbeat",
         json={
-            "worker_id": "test-worker",
+            "worker_id": worker_id,
             "host": "localhost",
             "group_id": "streamforge-workers",
             "partitions": [0, 1],
+            "failed_events": 2,
+            "filtered_events": 3,
+            "processing_lag_seconds": 1.25,
         },
     )
     assert response.status_code == 204
 
+    # Repeated cumulative heartbeats must not count the same failures twice.
+    await client.post(
+        "/workers/heartbeat",
+        json={
+            "worker_id": worker_id,
+            "host": "localhost",
+            "group_id": "streamforge-workers",
+            "partitions": [0, 1],
+            "failed_events": 2,
+            "filtered_events": 3,
+            "processing_lag_seconds": 1.25,
+        },
+    )
+
     workers = (await client.get("/workers")).json()
-    assert any(worker["worker_id"] == "test-worker" for worker in workers["workers"])
+    assert any(worker["worker_id"] == worker_id for worker in workers["workers"])
+    assert EVENTS_FAILED._value.get() == failed_before + 2
+    assert EVENTS_FILTERED._value.get() == filtered_before + 3
+    assert PROCESSING_LAG_SECONDS._value.get() == 1.25

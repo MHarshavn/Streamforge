@@ -19,6 +19,9 @@ class WorkerHeartbeat(BaseModel):
     host: str
     group_id: str
     partitions: list[int] = Field(default_factory=list)
+    failed_events: int = Field(default=0, ge=0)
+    filtered_events: int = Field(default=0, ge=0)
+    processing_lag_seconds: float = Field(default=0.0, ge=0.0)
 
 
 @router.post("/workers/heartbeat", status_code=204)
@@ -28,6 +31,12 @@ async def worker_heartbeat(payload: WorkerHeartbeat) -> Response:
         payload.host,
         payload.group_id,
         payload.partitions,
+    )
+    registry.report_worker_metrics(
+        payload.worker_id,
+        failed_events=payload.failed_events,
+        filtered_events=payload.filtered_events,
+        processing_lag_seconds=payload.processing_lag_seconds,
     )
     return Response(status_code=204)
 

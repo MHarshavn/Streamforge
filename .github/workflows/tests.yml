@@ -37,20 +37,6 @@ jobs:
           docker compose -f docker/compose.yaml logs kafka
           exit 1
 
-      - name: Start FastAPI backend
-        run: |
-          nohup python -m uvicorn streamforge.main:app --host 127.0.0.1 --port 8000 > /tmp/streamforge-api.log 2>&1 &
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
-              echo "FastAPI is ready"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "FastAPI did not become ready"
-          cat /tmp/streamforge-api.log
-          exit 1
-
       - name: Run tests
         run: pytest -q
 
@@ -58,6 +44,3 @@ jobs:
         if: always()
         run: |
           docker compose -f docker/compose.yaml down
-          if [ -f /tmp/streamforge-api.log ]; then
-            cat /tmp/streamforge-api.log
-          fi
