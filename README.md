@@ -107,7 +107,9 @@ Streamforge/
 └── pyproject.toml
 ```
 
-## Quick Start — Windows PowerShell
+## How to Execute the Code (Windows PowerShell)
+
+This walkthrough runs the full local pipeline: Kafka → FastAPI → workers → telemetry producer. Open a separate PowerShell terminal for each long-running process. You need Python 3.11+, Docker Desktop with Docker Compose, and (for the optional dashboard) Node.js with npm.
 
 ### 1. Install
 
@@ -119,11 +121,15 @@ pip install -e ".[dev]"
 
 ### 2. Start Kafka
 
+From the repository root, start the broker and create the project topics:
+
 ```powershell
 docker compose -f docker/compose.yaml up -d
 docker ps
 Test-NetConnection localhost -Port 9092
 ```
+
+Wait for `Test-NetConnection` to report `TcpTestSucceeded : True` before starting the application processes.
 
 The Compose setup creates the following 20-partition topics:
 
@@ -131,7 +137,7 @@ The Compose setup creates the following 20-partition topics:
 - `streamforge-state-changelog`
 - `streamforge-windowed`
 
-### 3. Start the distributed FastAPI backend
+### 3. Start the FastAPI backend (Terminal 1)
 
 ```powershell
 $env:STREAMFORGE_STATE_BACKEND="rocksdb"
@@ -158,9 +164,11 @@ Swagger UI:
 http://127.0.0.1:8000/docs
 ```
 
-### 4. Start workers
+When Uvicorn reports that the application has started, open `http://127.0.0.1:8000/docs` to explore the API.
 
-Use separate terminals. Keep the same consumer group and give each worker a different ID:
+### 4. Start workers (Terminal 2 or more)
+
+Start one or more workers in separate terminals. Give each worker a different ID; Kafka shares the 20 partitions across workers in the `streamforge-workers` consumer group:
 
 ```powershell
 $env:STREAMFORGE_WORKER_ID="worker-1"; python -m stream_processor.consumer
@@ -174,9 +182,7 @@ $env:STREAMFORGE_WORKER_ID="worker-2"; python -m stream_processor.consumer
 $env:STREAMFORGE_WORKER_ID="worker-3"; python -m stream_processor.consumer
 ```
 
-Kafka distributes the 20 partitions among workers in the `streamforge-workers` consumer group.
-
-### 5. Start the telemetry producer
+### 5. Start the telemetry producer (another terminal)
 
 In another terminal:
 
@@ -186,7 +192,9 @@ python -m producer.telemetry_producer
 
 The producer publishes JSON telemetry to `telemetry-events`.
 
-### 6. Optional Bytewax path
+The producer runs continuously until you press `Ctrl+C`. Check processed state at `http://127.0.0.1:8000/telemetry/`, worker assignments at `http://127.0.0.1:8000/workers`, and the topology at `http://127.0.0.1:8000/topology`.
+
+### 6. Optional Bytewax processing path
 
 ```powershell
 python -m bytewax.run stream_processor.bytewax_flow:flow -w 20
@@ -194,7 +202,7 @@ python -m bytewax.run stream_processor.bytewax_flow:flow -w 20
 
 The flow consumes telemetry, groups events by truck, applies a 5-minute event-time sliding window and publishes windowed results to `streamforge-windowed`.
 
-### 7. Start the topology UI
+### 7. Optional topology UI
 
 ```powershell
 cd topology-ui
@@ -203,6 +211,12 @@ npm run dev
 ```
 
 The UI polls `/topology` and displays Kafka partitions, active workers, state and backend relationships.
+
+To stop the local services, press `Ctrl+C` in each application terminal, then stop Docker Compose from the repository root:
+
+```powershell
+docker compose -f docker/compose.yaml down
+```
 
 ## State and Recovery
 
